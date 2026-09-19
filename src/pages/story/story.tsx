@@ -154,9 +154,11 @@ const SPRITE_IN = {
  * Where the player stops laying its chrome over the scene and stacks it underneath instead.
  *
  * Keyed on the viewport's shape rather than on `orientation`, so a narrow desktop window gets the readable layout too instead of
- * being a case nobody thought about. A phone in portrait is 0.46, a phone in landscape 2.45, a tablet either way 0.75 or 1.33.
+ * being a case nobody thought about. Taller than it is wide: a phone in portrait is 0.46 and a tablet 0.75, while a desktop
+ * window narrowed to 900x800 is 1.13 and keeps the scene whole, which 13/10 took away from it far too early.
  */
-const STACKED = "@media (max-aspect-ratio: 13/10)";
+const STACKED_QUERY = "(max-aspect-ratio: 1/1)";
+const STACKED = `@media ${STACKED_QUERY}`;
 
 /** How many spoken lines the stacked layout keeps above the current one, to fill the space the 16:9 scene cannot use. */
 const TRANSCRIPT_LINES = 4;
