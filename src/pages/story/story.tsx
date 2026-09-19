@@ -426,18 +426,20 @@ const styles = {
 	},
 	// A gap opens before each group of plates, so navigation and playback read as separate sets rather than one long row.
 	plateGap: { ml: { xs: 1, sm: 1.75 } },
-	// The fullscreen control where the plates have left the scene: inlaid in its corner, where the game keeps its own chrome.
+	// The fullscreen control where the plates have left the scene: the bare icon in its corner, with no plate around it. The shadow
+	// is what keeps it readable, since plenty of scenes play on snow or on a white wash.
 	sceneFullscreen: {
 		position: "absolute",
 		top: "2.5%",
 		left: "2%",
 		width: 40,
 		height: 40,
-		borderRadius: "3px",
 		color: "common.white",
-		border: "1px solid rgba(255, 255, 255, 0.45)",
-		bgcolor: "rgba(0, 0, 0, 0.45)",
-		"&:hover": { borderColor: "common.white", bgcolor: "rgba(0, 0, 0, 0.65)" }
+		// Four one-pixel shadows, which is an outline in all but name. A blurred shadow alone vanished against a snow scene.
+		filter: ["drop-shadow(1px 0 0 rgba(0, 0, 0, 0.85))", "drop-shadow(-1px 0 0 rgba(0, 0, 0, 0.85))", "drop-shadow(0 1px 0 rgba(0, 0, 0, 0.85))", "drop-shadow(0 -1px 0 rgba(0, 0, 0, 0.85))"].join(
+			" "
+		),
+		"&:hover": { bgcolor: "transparent" }
 	},
 	// Where the scene stands, quietly, out of the way of the art. It carries its own scrim, since plenty of scenes play on white.
 	hud: {
