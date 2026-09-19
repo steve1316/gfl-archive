@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent, RefObject } from "react";
 import { Link as RouterLink, useLocation, useParams } from "react-router-dom";
 
-import { Box, Button, CircularProgress, Drawer, Slider, Stack, Typography } from "@mui/material";
+import { Box, Button, CircularProgress, Drawer, IconButton, Slider, Stack, Typography, useMediaQuery } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material";
 
 import MenuIcon from "@mui/icons-material/Menu";
@@ -426,6 +426,19 @@ const styles = {
 	},
 	// A gap opens before each group of plates, so navigation and playback read as separate sets rather than one long row.
 	plateGap: { ml: { xs: 1, sm: 1.75 } },
+	// The fullscreen control where the plates have left the scene: inlaid in its corner, where the game keeps its own chrome.
+	sceneFullscreen: {
+		position: "absolute",
+		top: "2.5%",
+		left: "2%",
+		width: 40,
+		height: 40,
+		borderRadius: "3px",
+		color: "common.white",
+		border: "1px solid rgba(255, 255, 255, 0.45)",
+		bgcolor: "rgba(0, 0, 0, 0.45)",
+		"&:hover": { borderColor: "common.white", bgcolor: "rgba(0, 0, 0, 0.65)" }
+	},
 	// Where the scene stands, quietly, out of the way of the art. It carries its own scrim, since plenty of scenes play on white.
 	hud: {
 		position: "absolute",
@@ -869,6 +882,8 @@ export default function Story() {
 	// The navbar sits outside this element, so putting it fullscreen takes the browser's chrome and ours away together.
 	const fullscreen = useFullscreen(frameRef);
 	const canFullscreen = typeof document !== "undefined" && document.fullscreenEnabled;
+	// Read here as well as in the styles, since where the fullscreen control belongs is a question of markup, not of appearance.
+	const stacked = useMediaQuery(STACKED_QUERY);
 	const [muted, setMuted] = useState(() => {
 		try {
 			return window.localStorage.getItem(MUTED_KEY) === "1";
@@ -1291,7 +1306,8 @@ export default function Story() {
 			gap: false
 		},
 		{ key: "skip", label: "Skip", aria: "Skip to the end", icon: <FastForwardIcon fontSize="small" />, onClick: toEnd, disabled: atEnd || choosing, gap: false },
-		...(canFullscreen
+		// Stacked, it is inlaid in the scene's own corner instead: a ninth plate wrapped onto a row of its own down there.
+		...(canFullscreen && !stacked
 			? [
 					{
 						key: "full",
@@ -1346,6 +1362,19 @@ export default function Story() {
 						<Box sx={[styles.wash, { bgcolor: "#0a1020", opacity: stage.night ? 0.42 : 0 }]} />
 						<Box sx={[styles.wash, { bgcolor: "#000", opacity: stage.darkened ? 0.55 : 0 }]} />
 						{fade && <Box key={`fade-${beatIndex}`} sx={[styles.fade, { bgcolor: "#ffffff" }]} />}
+
+						{canFullscreen && stacked && (
+							<IconButton
+								sx={styles.sceneFullscreen}
+								aria-label={fullscreen ? "Leave fullscreen" : "Fill the screen"}
+								onClick={(event) => {
+									event.stopPropagation();
+									toggleFullscreen();
+								}}
+							>
+								{fullscreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
+							</IconButton>
+						)}
 
 						<Box sx={styles.hud}>
 							{mission?.title ?? sceneName} &middot; Beat {beatIndex + 1} of {beats.length}
