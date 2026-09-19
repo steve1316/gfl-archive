@@ -1051,7 +1051,17 @@ export default function Story() {
 			// A browser may refuse to start audio before the reader has interacted, and advancing the scene is that interaction.
 			void element.play().catch(() => {});
 		}
-	}, [stage.bgm, muted, volume]);
+		// Without this the phone's notification shade falls back to the page's favicon and its URL, which says nothing useful.
+		if ("mediaSession" in navigator) {
+			const art = stage.background ?? mission?.background ?? null;
+			navigator.mediaSession.metadata = new MediaMetadata({
+				title: mission?.title ?? sceneName,
+				artist: cue ?? undefined,
+				album: "Griffin Archive",
+				artwork: art !== null && hasStoryBackground(art) ? [{ src: storyBackgroundUrl(art), type: "image/webp" }] : []
+			});
+		}
+	}, [stage.bgm, stage.background, muted, volume, mission, sceneName]);
 
 	// Sound effects fire once as their beat is reached, over whatever music is playing.
 	useEffect(() => {
