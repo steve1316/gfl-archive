@@ -16,6 +16,8 @@ import AutorenewIcon from "@mui/icons-material/Autorenew";
 import VolumeUpIcon from "@mui/icons-material/VolumeUp";
 import VolumeOffIcon from "@mui/icons-material/VolumeOff";
 import FastForwardIcon from "@mui/icons-material/FastForward";
+import FullscreenIcon from "@mui/icons-material/Fullscreen";
+import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
 
 import LoadError from "../../components/LoadError";
 import StoryPanelFrame, { AMBER } from "../../components/StoryPanelFrame";
@@ -287,9 +289,9 @@ const styles = {
 	// Where the margins are wide enough to hold the chrome, the three parts sit side by side and the scene is left alone.
 	playerCinema: { width: "100%", height: "100%", aspectRatio: "auto", display: "flex", alignItems: "stretch" },
 	stageCinema: { width: "auto", height: "100%", flex: "none" },
-	// Four across and two down. Two columns needed four rows, which did not fit the height the browser leaves, and shortening the
-	// plates to make it fit would have put them back under the size a thumb hits.
-	controlsCinema: { position: "static", order: -1, flex: "none", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0.75, alignContent: "center", px: 1 },
+	// Three across and three down, an exact fit for nine plates in the margin. Two columns needed four rows, which did not fit the
+	// height the browser leaves, and shortening the plates to make it fit would have put them under the size a thumb hits.
+	controlsCinema: { position: "static", order: -1, flex: "none", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0.75, alignContent: "center", px: 1 },
 	// The current line sits at the bottom of the column with whatever history fits above it.
 	stackCinema: { position: "static", flex: "none", display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "stretch", gap: 0.75, px: 1, py: 1 },
 	// The margin's own panel. The game's frame is a 511x158 drawing and this box is nearly square, so it is left off rather than
@@ -373,6 +375,9 @@ const styles = {
 		[STACKED]: {
 			position: "static",
 			flex: "none",
+			// Nine plates will not sit on one line at 384px without going under the size a thumb hits, so the row wraps instead.
+			flexWrap: "wrap",
+			rowGap: 0.75,
 			justifyContent: "center",
 			px: 1,
 			py: 1,
@@ -633,6 +638,26 @@ function useSideMargin(ref: RefObject<HTMLElement | null>): number {
 }
 
 /**
+ * Whether an element is the one the browser is showing fullscreen, kept in step with the browser's own view of it.
+ *
+ * The reader can leave fullscreen without touching the plate, with the back gesture or `Esc`, so this follows the browser rather
+ * than remembering what was asked for.
+ *
+ * @param ref The element the plate puts fullscreen.
+ * @returns Whether it is fullscreen now.
+ */
+function useFullscreen(ref: RefObject<HTMLElement | null>): boolean {
+	const [full, setFull] = useState(false);
+	useEffect(() => {
+		const sync = () => setFull(document.fullscreenElement === ref.current && ref.current !== null);
+		sync();
+		document.addEventListener("fullscreenchange", sync);
+		return () => document.removeEventListener("fullscreenchange", sync);
+	}, [ref]);
+	return full;
+}
+
+/**
  * The stage as it stands at a beat, folded from the ops of every beat up to and including it.
  *
  * Background and music persist until something changes them, so they cannot be read off the current beat alone.
@@ -830,6 +855,9 @@ export default function Story() {
 	const frameRef = useRef<HTMLDivElement | null>(null);
 	const sideMargin = useSideMargin(frameRef);
 	const cinema = sideMargin >= CINEMA_MIN_MARGIN;
+	// The navbar sits outside this element, so putting it fullscreen takes the browser's chrome and ours away together.
+	const fullscreen = useFullscreen(frameRef);
+	const canFullscreen = typeof document !== "undefined" && document.fullscreenEnabled;
 	const [muted, setMuted] = useState(() => {
 		try {
 			return window.localStorage.getItem(MUTED_KEY) === "1";
@@ -1148,6 +1176,14 @@ export default function Story() {
 	const toggleMuted = useCallback(() => setMuted((current) => !current), []);
 	// The stage advances on a click, so a click landing on a choice button must not also count as advancing the scene.
 	const stopBubbling = useCallback((event: MouseEvent) => event.stopPropagation(), []);
+	const toggleFullscreen = useCallback(() => {
+		if (document.fullscreenElement !== null) {
+			void document.exitFullscreen().catch(() => {});
+			return;
+		}
+		// Refused when the browser does not count this as a user gesture, which is nothing to report: the plate simply does nothing.
+		void frameRef.current?.requestFullscreen().catch(() => {});
+	}, []);
 	const openMenu = useCallback(() => setMenuOpen(true), []);
 	const closeMenu = useCallback(() => setMenuOpen(false), []);
 	const showHint = useCallback(() => setHintOpen(true), []);
@@ -1197,7 +1233,11 @@ export default function Story() {
 				Enter: () => advanceRef.current(),
 				ArrowRight: () => advanceRef.current(),
 				ArrowLeft: back,
-				Escape: () => setMenuOpen((open) => !open),
+				Escape: () => {
+					if (document.fullscreenElement === null) {
+						setMenuOpen((open) => !open);
+					}
+				},
 				a: toggleAuto,
 				l: openBacklog,
 				m: toggleMuted,
@@ -1239,7 +1279,20 @@ export default function Story() {
 			disabled: false,
 			gap: false
 		},
-		{ key: "skip", label: "Skip", aria: "Skip to the end", icon: <FastForwardIcon fontSize="small" />, onClick: toEnd, disabled: atEnd || choosing, gap: false }
+		{ key: "skip", label: "Skip", aria: "Skip to the end", icon: <FastForwardIcon fontSize="small" />, onClick: toEnd, disabled: atEnd || choosing, gap: false },
+		...(canFullscreen
+			? [
+					{
+						key: "full",
+						label: fullscreen ? "Exit" : "Full",
+						aria: fullscreen ? "Leave fullscreen" : "Fill the screen",
+						icon: fullscreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />,
+						onClick: toggleFullscreen,
+						disabled: false,
+						gap: true
+					}
+				]
+			: [])
 	];
 
 	return (
