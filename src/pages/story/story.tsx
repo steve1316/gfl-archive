@@ -426,6 +426,8 @@ const styles = {
 	// The keys, shown once and then only on request.
 	hint: {
 		display: "flex",
+		// There are no keys to teach on a touch device, and tapping the scene to read on teaches itself.
+		"@media (pointer: coarse)": { display: "none" },
 		alignItems: "center",
 		flexWrap: "wrap",
 		justifyContent: "center",
@@ -485,8 +487,8 @@ const styles = {
 	caret: { display: "inline-block", width: "0.5em", textAlign: "center", opacity: 0.7 },
 	backlogLine: { py: 0.75, borderBottom: "1px solid", borderColor: "divider" },
 	// Two readings of the same hint. A touch device has no keys to be told about, and was being told nothing at all instead.
-	hintKeys: { display: "contents", "@media (pointer: coarse)": { display: "none" } },
-	hintTap: { display: "none", "@media (pointer: coarse)": { display: "inline" } }
+	// The drawer's way back to the hint, hidden alongside it wherever there is no keyboard to describe.
+	hintLink: { justifyContent: "flex-start", "@media (pointer: coarse)": { display: "none" } }
 } satisfies Record<string, SxProps<Theme>>;
 
 /** Where a reader had got to in one scene, as it is kept in storage. */
@@ -1298,33 +1300,28 @@ export default function Story() {
 					<Box sx={[styles.bottomStack, cinema ? styles.stackCinema : {}, cinema ? { width: sideMargin } : {}]}>
 						{hintOpen && (
 							<Box sx={styles.hint} onClick={stopBubbling}>
-								<Box component="span" sx={styles.hintKeys}>
-									<span>
-										<Box component="kbd" sx={styles.key}>
-											Space
-										</Box>
-										or
-										<Box component="kbd" sx={styles.key}>
-											&rarr;
-										</Box>
-										next line
-									</span>
-									<span>
-										<Box component="kbd" sx={styles.key}>
-											&larr;
-										</Box>
-										back
-									</span>
-									<span>
-										<Box component="kbd" sx={styles.key}>
-											Esc
-										</Box>
-										menu
-									</span>
-								</Box>
-								<Box component="span" sx={styles.hintTap}>
-									Tap the scene to read on
-								</Box>
+								<span>
+									<Box component="kbd" sx={styles.key}>
+										Space
+									</Box>
+									or
+									<Box component="kbd" sx={styles.key}>
+										&rarr;
+									</Box>
+									next line
+								</span>
+								<span>
+									<Box component="kbd" sx={styles.key}>
+										&larr;
+									</Box>
+									back
+								</span>
+								<span>
+									<Box component="kbd" sx={styles.key}>
+										Esc
+									</Box>
+									menu
+								</span>
 								<Button size="small" color="inherit" onClick={dismissHint}>
 									Got it
 								</Button>
@@ -1498,7 +1495,7 @@ export default function Story() {
 							</Typography>
 							<Slider size="small" min={SPEED_MIN} max={SPEED_MAX} step={SPEED_STEP} value={speed} onChange={changeSpeed} aria-label="Text speed" valueLabelDisplay="auto" />
 						</Stack>
-						<Button size="small" startIcon={<KeyboardIcon fontSize="small" />} onClick={showHint} sx={{ justifyContent: "flex-start" }}>
+						<Button size="small" startIcon={<KeyboardIcon fontSize="small" />} onClick={showHint} sx={styles.hintLink}>
 							Keyboard shortcuts
 						</Button>
 					</Stack>
