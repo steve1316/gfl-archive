@@ -160,6 +160,14 @@ const SPRITE_IN = {
 const STACKED_QUERY = "(max-aspect-ratio: 1/1)";
 const STACKED = `@media ${STACKED_QUERY}`;
 
+/**
+ * How far the panel's drawn frame sits inside its box, as a share of the box's width.
+ *
+ * `StoryPanelFrame` insets its outline by 8 of the artwork's 511 units and stretches to fit, so the line moves further in as the
+ * panel gets wider. A fixed padding therefore crowds the text against it: at 876px the gap had closed to 6px.
+ */
+const FRAME_INSET_PCT = (100 * 8) / 511;
+
 /** How many spoken lines the stacked layout keeps above the current one, to fill the space the 16:9 scene cannot use. */
 const TRANSCRIPT_LINES = 4;
 
@@ -345,7 +353,8 @@ const styles = {
 		position: "relative",
 		width: { xs: "94%", sm: `${BOX_WIDTH_PCT}%` },
 		// Never shrinks: it is a flex item in the stacked column, and letting it give way clipped the last line of a long beat.
-		[STACKED]: { width: "100%", flexShrink: 0 },
+		// Padding that follows the frame instead of a fixed inset, so the text clears the drawn line at any panel width.
+		[STACKED]: { width: "100%", flexShrink: 0, pl: `calc(${FRAME_INSET_PCT}% + 14px)`, pr: `calc(${FRAME_INSET_PCT}% + 14px)` },
 		boxSizing: "border-box",
 		// The panel carries its own mark in the bottom right, so the text is kept clear of that corner.
 		p: { xs: 1.5, sm: 2.5 },
