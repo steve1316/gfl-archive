@@ -324,7 +324,7 @@ const styles = {
 		gap: 1,
 		px: 1,
 		// Below the breakpoint it takes whatever height the scene leaves, so the panel grows rather than the page ending in black.
-		[STACKED]: { position: "static", flex: 1, minHeight: 0, alignItems: "stretch", px: 1.5, pt: 1.5, pb: 1 }
+		[STACKED]: { position: "static", flex: 1, minHeight: 0, alignItems: "stretch", px: 1.5, pt: 2, pb: 1 }
 	},
 	// The lines already read, kept above the current one where the stacked layout has room for them. It takes the slack the scene
 	// leaves rather than the panel doing it, since the panel's frame is one drawing and stretching it warps the notch and the bar.
@@ -352,7 +352,7 @@ const styles = {
 	},
 	// One height, whatever the beat holds. The panel art carries a notch in its top right, and letting the box grow for a longer
 	// line or for the end row restretched that art until the text sat under it.
-	box: { position: "relative", minHeight: { xs: "8.6em", sm: "9.6em" }, [STACKED]: { minHeight: "13em" } },
+	box: { position: "relative", minHeight: { xs: "8.6em", sm: "9.6em" }, [STACKED]: { minHeight: "11.2em" } },
 	// The panel's flowing content, lifted over the drawn frame. The end row is positioned against the panel instead, so it is
 	// deliberately left out of this.
 	panelBody: { position: "relative", display: "flex", flexDirection: "column", minHeight: 0, flex: 1 },
@@ -468,7 +468,8 @@ const styles = {
 	endingLabel: { fontSize: 13, fontWeight: 700, color: "text.secondary", letterSpacing: "0.04em" },
 	// Holds its line whether or not the beat names anyone: the panel art cuts a notch across its top right, and narration that
 	// started at the very top of the box ran straight into it.
-	speaker: { fontWeight: 800, color: "secondary.main", mb: 0.5, lineHeight: 1.6, height: "1.6em" },
+	// The stacked panel is tall enough that a 0.5 gap read as the body being part of the speaker's own line.
+	speaker: { fontWeight: 800, color: "secondary.main", mb: 0.5, lineHeight: 1.6, height: "1.6em", [STACKED]: { mb: 1.25 } },
 	// A fixed run of lines, scrolling past it, so a one-line beat and a three-line beat leave the box the same shape.
 	// A fixed height, so the panel's frame is drawn at one size whatever the beat holds. Two lines is right at 46% of a wide stage
 	// and far too few at 384px, where the same sentence wraps to four, so the stacked layout gets its own.
@@ -479,7 +480,7 @@ const styles = {
 		overflowY: "auto",
 		// The frame's amber bar reaches across the top right. At 46% of a wide stage no line is long enough to meet it; at 384px
 		// every line is, so the first one is cut short around it the way text wraps around a picture.
-		[STACKED]: { height: "8.5em", "&::before": { content: '""', float: "right", width: "31%", height: "1.7em" } }
+		[STACKED]: { height: "6.8em", "&::before": { content: '""', float: "right", width: "31%", height: "1.7em" } }
 	},
 	caret: { display: "inline-block", width: "0.5em", textAlign: "center", opacity: 0.7 },
 	backlogLine: { py: 0.75, borderBottom: "1px solid", borderColor: "divider" },
