@@ -26,9 +26,9 @@ const BAR_RIGHT = 502;
 const STRIPES = { left: 412, right: 468, top: 133, bottom: 140, step: 5.1, width: 3 };
 const BLOCK = { left: 469, right: 493, top: 135, bottom: 139 };
 
-/** The panel's colours, taken from the sprite. */
+/** The panel's colours, taken from the sprite. `AMBER` is shared, so anything else drawing the game's chrome matches it. */
 const STROKE = "rgba(236, 236, 236, 0.38)";
-const AMBER = "#dcbb50";
+export const AMBER = "#dcbb50";
 const MARK = "rgba(214, 214, 214, 0.55)";
 
 /** Props for StoryPanelFrame. */

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MouseEvent } from "react";
+import type { MouseEvent, RefObject } from "react";
 import { Link as RouterLink, useLocation, useParams } from "react-router-dom";
 
 import { Box, Button, CircularProgress, Drawer, Slider, Stack, Typography } from "@mui/material";
@@ -18,7 +18,7 @@ import VolumeOffIcon from "@mui/icons-material/VolumeOff";
 import FastForwardIcon from "@mui/icons-material/FastForward";
 
 import LoadError from "../../components/LoadError";
-import StoryPanelFrame from "../../components/StoryPanelFrame";
+import StoryPanelFrame, { AMBER } from "../../components/StoryPanelFrame";
 import ScrollToTop from "../../components/ScrollToTop";
 import { storyAudioUrl, storyBackgroundUrl, storySpriteUrl, storyUiUrl } from "../../lib/assets";
 import { loadStoryChapter, loadStoryIndex, loadStoryScene } from "../../lib/data";
@@ -159,6 +159,14 @@ const STACKED = "@media (max-aspect-ratio: 13/10)";
 /** How many spoken lines the stacked layout keeps above the current one, to fill the space the 16:9 scene cannot use. */
 const TRANSCRIPT_LINES = 4;
 
+/**
+ * How wide each black margin beside the scene has to be before the chrome moves into it, in pixels.
+ *
+ * A phone in landscape leaves about 224px a side, because the browser keeps its address bar and the page never scrolls, so the
+ * scene is height-bound and narrow. A desktop leaves about 70 and a tablet none at all, and those keep the chrome over the scene.
+ */
+const CINEMA_MIN_MARGIN = 170;
+
 /** Carried on every link into a scene from inside the player, telling it to open at the start rather than resume. */
 const OPEN_AT_START = { restart: true };
 
@@ -276,6 +284,34 @@ const styles = {
 		display: "block"
 	},
 	commsScreen: { position: "absolute", inset: 0, pointerEvents: "none", backgroundImage: COMMS_SCREEN, backgroundSize: COMMS_SCREEN_SIZE },
+	// Where the margins are wide enough to hold the chrome, the three parts sit side by side and the scene is left alone.
+	playerCinema: { width: "100%", height: "100%", aspectRatio: "auto", display: "flex", alignItems: "stretch" },
+	stageCinema: { width: "auto", height: "100%", flex: "none" },
+	// Four across and two down. Two columns needed four rows, which did not fit the height the browser leaves, and shortening the
+	// plates to make it fit would have put them back under the size a thumb hits.
+	controlsCinema: { position: "static", order: -1, flex: "none", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 0.75, alignContent: "center", px: 1 },
+	// The current line sits at the bottom of the column with whatever history fits above it.
+	stackCinema: { position: "static", flex: "none", display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "stretch", gap: 0.75, px: 1, py: 1 },
+	// The margin's own panel. The game's frame is a 511x158 drawing and this box is nearly square, so it is left off rather than
+	// stretched into a shape the game never draws. The amber edge is what carries it instead.
+	slab: {
+		position: "relative",
+		width: "100%",
+		boxSizing: "border-box",
+		display: "flex",
+		flexDirection: "column",
+		// Gives way only after the history above it has, and scrolls its own text rather than pushing past the column.
+		flex: "0 1 auto",
+		minHeight: 0,
+		maxHeight: "100%",
+		p: 1.25,
+		bgcolor: "rgba(8, 9, 13, 0.9)",
+		borderLeft: `3px solid ${AMBER}`
+	},
+	slabText: { whiteSpace: "pre-wrap", lineHeight: 1.6, fontSize: 14, flex: 1, minHeight: 0, overflowY: "auto" },
+	transcriptCinema: { display: "flex", flexDirection: "column", justifyContent: "flex-end", flex: "0 100 auto", minHeight: 0, overflow: "hidden", px: 0 },
+	// The slab has no mark to sit beside, so the end row simply follows the text instead of being placed against the frame.
+	endingCinema: { flexWrap: "wrap", alignItems: "center", rowGap: 0.5, mt: 1 },
 	// Everything that sits along the bottom of the scene, stacked so a taller dialogue box pushes the hint up instead of meeting it.
 	bottomStack: {
 		position: "absolute",
@@ -294,6 +330,8 @@ const styles = {
 	// leaves rather than the panel doing it, since the panel's frame is one drawing and stretching it warps the notch and the bar.
 	transcript: {
 		display: "none",
+		maskImage: "linear-gradient(to bottom, transparent 0, #000 1.4em)",
+		WebkitMaskImage: "linear-gradient(to bottom, transparent 0, #000 1.4em)",
 		[STACKED]: { display: "flex", flexDirection: "column", justifyContent: "flex-end", flex: 1, minHeight: 0, overflow: "hidden", px: 0.5, pb: 0.5 }
 	},
 	transcriptLine: { fontSize: 14, lineHeight: 1.55, color: "text.disabled", mb: 0.75 },
@@ -317,7 +355,7 @@ const styles = {
 	box: { position: "relative", minHeight: { xs: "8.6em", sm: "9.6em" }, [STACKED]: { minHeight: "13em" } },
 	// The panel's flowing content, lifted over the drawn frame. The end row is positioned against the panel instead, so it is
 	// deliberately left out of this.
-	panelBody: { position: "relative" },
+	panelBody: { position: "relative", display: "flex", flexDirection: "column", minHeight: 0, flex: 1 },
 	// The choice menu takes the dialogue box's place, so the stage behind it stays visible while the reader decides.
 	choices: { position: "relative", display: "flex", flexDirection: "column", gap: 1 },
 	// The tints sit over the scene but under the dialogue, so a line spoken over a darkened scene is still readable.
@@ -564,6 +602,34 @@ function pageText(page: StoryPage): string {
 }
 
 /**
+ * How wide the black margin beside the scene is, in pixels.
+ *
+ * The scene is always 16:9, so whatever its box cannot use is split evenly either side of it. Measured rather than inferred from
+ * a breakpoint, since the height the browser leaves changes with its own chrome and there is no query that does the arithmetic.
+ *
+ * @param ref The player's outer box.
+ * @returns The margin on one side, or 0 while it is unknown.
+ */
+function useSideMargin(ref: RefObject<HTMLElement | null>): number {
+	const [margin, setMargin] = useState(0);
+	useEffect(() => {
+		const element = ref.current;
+		if (element === null || typeof ResizeObserver === "undefined") {
+			return;
+		}
+		const observer = new ResizeObserver((entries) => {
+			const box = entries[0]?.contentRect;
+			if (box !== undefined) {
+				setMargin(Math.max(0, (box.width - (box.height * 16) / 9) / 2));
+			}
+		});
+		observer.observe(element);
+		return () => observer.disconnect();
+	}, [ref]);
+	return margin;
+}
+
+/**
  * The stage as it stands at a beat, folded from the ops of every beat up to and including it.
  *
  * Background and music persist until something changes them, so they cannot be read off the current beat alone.
@@ -757,6 +823,10 @@ export default function Story() {
 	const advanceRef = useRef<() => void>(() => {});
 	// The looping music. One element reused across cues, so changing track does not leave the old one playing.
 	const musicRef = useRef<HTMLAudioElement | null>(null);
+	// How much black sits either side of the scene, and whether it is enough to hold the chrome.
+	const frameRef = useRef<HTMLDivElement | null>(null);
+	const sideMargin = useSideMargin(frameRef);
+	const cinema = sideMargin >= CINEMA_MIN_MARGIN;
 	const [muted, setMuted] = useState(() => {
 		try {
 			return window.localStorage.getItem(MUTED_KEY) === "1";
@@ -1160,7 +1230,7 @@ export default function Story() {
 	];
 
 	return (
-		<Box component="main" sx={styles.main}>
+		<Box component="main" ref={frameRef} sx={styles.main}>
 			<ScrollToTop />
 			{failed ? (
 				<LoadError what="this scene" onRetry={retry} titleComponent="h2" />
@@ -1169,11 +1239,11 @@ export default function Story() {
 					<CircularProgress aria-label="Loading the scene" />
 				</Box>
 			) : (
-				<Box sx={styles.player} onClick={advance} role="button" tabIndex={-1} aria-label="Advance the scene">
+				<Box sx={[styles.player, cinema ? styles.playerCinema : {}]} onClick={advance} role="button" tabIndex={-1} aria-label="Advance the scene">
 					<Box
 						// Keyed on the beat so a shake restarts when the reader reaches another one, rather than only on the first.
 						key={shake ? `shake-${beatIndex}` : "stage"}
-						sx={[styles.stage, { bgcolor: stage.blankedTo === "white" ? "#ffffff" : "#000000" }, shake ? shakeSx(shake) : {}]}
+						sx={[styles.stage, cinema ? styles.stageCinema : {}, { bgcolor: stage.blankedTo === "white" ? "#ffffff" : "#000000" }, shake ? shakeSx(shake) : {}]}
 					>
 						<Box sx={[styles.scene, { background: backing, opacity: stage.blankedTo === null ? 1 : 0 }]} />
 
@@ -1206,12 +1276,12 @@ export default function Story() {
 						</Box>
 					</Box>
 
-					<Box sx={styles.stageControls} onClick={stopBubbling}>
+					<Box sx={[styles.stageControls, cinema ? styles.controlsCinema : {}, cinema ? { width: sideMargin } : {}]} onClick={stopBubbling}>
 						{plates.map((plate) => (
 							<Button
 								key={plate.key}
 								variant="outlined"
-								sx={[styles.stageButton, plate.gap ? styles.plateGap : {}, plate.running ? styles.stageButtonRunning : {}]}
+								sx={[styles.stageButton, plate.gap && !cinema ? styles.plateGap : {}, plate.running ? styles.stageButtonRunning : {}]}
 								onClick={plate.onClick}
 								disabled={plate.disabled}
 								aria-label={plate.aria}
@@ -1224,7 +1294,7 @@ export default function Story() {
 						))}
 					</Box>
 
-					<Box sx={styles.bottomStack}>
+					<Box sx={[styles.bottomStack, cinema ? styles.stackCinema : {}, cinema ? { width: sideMargin } : {}]}>
 						{hintOpen && (
 							<Box sx={styles.hint} onClick={stopBubbling}>
 								<Box component="span" sx={styles.hintKeys}>
@@ -1261,7 +1331,7 @@ export default function Story() {
 						)}
 
 						{/* Only drawn where the chrome is stacked, since the overlay layout has no room for it and the Log covers it there. */}
-						<Box sx={styles.transcript} aria-hidden>
+						<Box sx={[styles.transcript, cinema ? styles.transcriptCinema : {}]} aria-hidden>
 							{transcript.map((entry, index) => (
 								<Typography key={`${entry.speaker ?? ""}-${index}`} sx={styles.transcriptLine}>
 									{entry.speaker && <Box component="span" sx={styles.transcriptSpeaker}>{`${entry.speaker}: `}</Box>}
@@ -1283,14 +1353,14 @@ export default function Story() {
 								))}
 							</Box>
 						) : (
-							<Box sx={[styles.panel, styles.box]}>
-								<StoryPanelFrame />
+							<Box sx={cinema ? styles.slab : [styles.panel, styles.box]}>
+								{!cinema && <StoryPanelFrame />}
 								<Box sx={styles.panelBody}>
 									{/* Always drawn, so narration starts on the same line a spoken beat does rather than riding up into the frame. */}
 									<Typography variant="subtitle2" sx={styles.speaker} aria-hidden={!beat?.speaker}>
 										{beat?.speaker ?? ""}
 									</Typography>
-									<Typography variant="body1" sx={styles.text}>
+									<Typography variant="body1" sx={cinema ? styles.slabText : styles.text}>
 										{renderTyped(page, typed)}
 										{!done && (
 											<Box component="span" sx={styles.caret}>
@@ -1300,7 +1370,7 @@ export default function Story() {
 									</Typography>
 								</Box>
 								{ended && (
-									<Stack direction="row" spacing={1.5} sx={styles.ending} onClick={stopBubbling}>
+									<Stack direction="row" spacing={1.5} sx={cinema ? styles.endingCinema : styles.ending} onClick={stopBubbling}>
 										<Box component="span" sx={styles.endingLabel}>
 											Scene end.
 										</Box>
