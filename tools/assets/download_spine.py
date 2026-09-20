@@ -11,7 +11,7 @@ refresh to tens of megabytes.
 
 Three kinds of rig are available. `--ids` fetches base rigs, `--ids --mod` fetches the Mod rigs of the
 same dolls, and `--skin-pairs` fetches individual skins. Mod skins are not a thing: a Mod doll wearing
-a skin shows the skin's own chibi, and the wiki has no Mod skin animations either.
+a skin shows the skin's own chibi, and the archive has no Mod skin animations either.
 
 Each bundle yields:
 
@@ -95,7 +95,7 @@ def resolve_code(doll_id, codes, mod=False):
     """Find the weapon codename whose bundles hold a doll's Spine data.
 
     Args:
-        doll_id: The doll's id in the wiki's own numbering.
+        doll_id: The doll's id in the archive's own numbering.
         codes: Doll id to codename, as from `parse_guns`.
         mod: Whether to resolve the Mod rig rather than the base one.
 

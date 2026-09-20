@@ -28,7 +28,7 @@ SKIN_LIVE2D_PREFIX = "live2dnew_gun_"
 # A Mod row's code, such as `UMP45Mod_3403`, when the Mod has no bundle of its own and falls back to the base doll's skin bundle.
 MOD_SKIN_CODE = re.compile(r"^(.+)Mod_(\d+)$")
 
-# A skin Live2D bundle holds two models under sibling folders. The output name for `destroy` is `damaged`, matching the wiki's own wording
+# A skin Live2D bundle holds two models under sibling folders. The output name for `destroy` is `damaged`, matching the archive's own wording
 # for damaged art everywhere else.
 SKIN_LIVE2D_VARIANTS = (("normal", "normal"), ("damaged", "destroy"))
 
@@ -70,7 +70,7 @@ def skin_live2d_models(rows, bundle_names, doll_ids):
     Args:
         rows: Rows from `stc/live2d.json`.
         bundle_names: Every bundle name in the ResData index, so a row with no bundle is dropped.
-        doll_ids: Doll ids the wiki hosts, so a row for a doll we do not have is dropped.
+        doll_ids: Doll ids the archive hosts, so a row for a doll we do not have is dropped.
 
     Returns:
         A list of `{"doll_id", "form", "skin_key", "bundle"}` dicts, one per distinct key, sorted by doll id then form then

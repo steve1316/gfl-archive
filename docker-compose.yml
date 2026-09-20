@@ -1,5 +1,5 @@
 services:
-  wiki:
+  archive:
     build: .
     ports:
       - "8088:80"

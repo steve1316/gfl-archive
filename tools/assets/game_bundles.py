@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Resolve and download the game's Unity asset bundles behind every asset the wiki shows.
+"""Resolve and download the game's Unity asset bundles behind every asset the archive shows.
 
 The wanted set comes from the site data: every doll (base art, Mod art when the doll has a Mod, each skin with a numeric id), its Spine rigs,
 its skill icons and every equipment icon. Each wanted asset is matched to a bundle by name and then confirmed against the file list the ResData
@@ -1406,7 +1406,7 @@ def build_inventory(
         fairies: Fairy records from `load_site`, each `{"id", "code"}`.
         enemies: Enemy records from `load_site`, each `{"id", "code"}`.
         live2d_rows: Rows from `stc/live2d.json`, used to resolve T-Doll skin Live2D models. Empty when the checkout has none.
-        doll_ids: Doll ids the wiki hosts, used to filter `live2d_rows`. Defaults to every id in `dolls` when not given.
+        doll_ids: Doll ids the archive hosts, used to filter `live2d_rows`. Defaults to every id in `dolls` when not given.
         units: Ids of the Protocol Assimilation units the site ships, which carry skill icons of their own.
         sangvis: `sangvis` rows by id, holding each unit's skill group ids.
         story_sprites: Sprite prefab names the story scripts refer to. Empty when no story data is generated.
