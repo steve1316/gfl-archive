@@ -51,7 +51,7 @@ const MIN_ENEMIES = 300;
 
 /**
  * Class names by `sangvis.type`, which is also the `sangvis_type` id. Upstream only names the last two in Chinese, so the English
- * names come from the wiki instead. The capture rates on `sangvis_type` line up with them: 25%, 50% and 100% in this order.
+ * names come from IOPWiki instead. The capture rates on `sangvis_type` line up with them: 25%, 50% and 100% in this order.
  */
 const ASSIMILATION_CLASSES = { 1: "Ringleader", 2: "Elite", 3: "Basic" };
 

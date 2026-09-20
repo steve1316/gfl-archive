@@ -22,7 +22,7 @@ import type { TDoll, TDollForm } from "../../types/tdoll";
 /** How many dolls one page of results holds. */
 const PAGE_SIZE = 30;
 
-/** Old wiki names by doll id, from the search index, so a doll stays findable by the name it had before upstream renamed it. */
+/** Old IOPWiki names by doll id, from the search index, so a doll stays findable by the name it had before upstream renamed it. */
 const ALIASES_BY_ID = new Map(searchIndex.map((entry) => [entry.id, entry.aliases ?? []]));
 
 /** What the results can be sorted by. */

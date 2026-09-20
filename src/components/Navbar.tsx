@@ -42,7 +42,7 @@ interface SearchOption {
 	tag?: string;
 	/** Doll, HOC or fairy name, shown and matched against. */
 	name: string;
-	/** The name and any old wiki names, passed through `normaliseName`, which the typed text is matched against. */
+	/** The name and any old IOPWiki names, passed through `normaliseName`, which the typed text is matched against. */
 	keys: string[];
 }
 

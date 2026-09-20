@@ -4,7 +4,7 @@
  *
  * Writes the doll shards, their profile side files, equipment.json, hocs.json, fairies.json, the formation simulator data, upstream.json and the search index under src/data.
  * Output is deterministic for a given upstream commit and set of released dolls, so a scheduled run only commits when something really changed.
- * The search index keeps the pre-2026-09-13 wiki names from `tools/data/name-aliases.json` as aliases for renamed dolls.
+ * The search index keeps the pre-2026-09-13 IOPWiki names from `tools/data/name-aliases.json` as aliases for renamed dolls.
  * The run date only selects which dolls are released and is not written out, so an unchanged import produces no diff.
  * Doll profiles come from IOPWiki, with Wikidata filling empty makers and countries and gf-data-ch spotting copied CN dates.
  * Profile fields can be corrected through `overrides.json` `fields` with paths such as `profile.manufacturer`, each with a one-line `reason`.

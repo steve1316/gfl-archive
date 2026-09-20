@@ -6,7 +6,7 @@
  * the generated doll shards to get them: 537 KB raw, 65 KB gzipped, on every page including the 404. This
  * emits just the id and name, which is roughly 9 KB raw and 2.4 KB gzipped.
  *
- * Entries also carry `aliases` from `tools/data/name-aliases.json`: the names the wiki used before the 2026-09-13
+ * Entries also carry `aliases` from `tools/data/name-aliases.json`: the names IOPWiki used before the 2026-09-13
  * upstream import renamed dolls (HK416 is now "416"), so readers can still find a doll by its old name.
  *
  * HOCs, Fairies and enemies go to their own small `hoc-search-index.json`, `fairy-search-index.json` and `enemy-search-index.json`, because
@@ -21,7 +21,7 @@ import path from "node:path";
 
 import { SHARDS } from "./lib/shards.mjs";
 
-/** Old wiki names keyed by doll id, kept searchable after upstream renamed the dolls. */
+/** Old IOPWiki names keyed by doll id, kept searchable after upstream renamed the dolls. */
 const ALIASES_FILE = "tools/data/name-aliases.json";
 
 /**

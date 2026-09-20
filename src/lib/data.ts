@@ -40,7 +40,7 @@ export interface SearchEntry {
 	type: string;
 	/** Base form rarity, with 1 meaning the collaboration "Extra" rarity. */
 	rarity: number;
-	/** Names the wiki used before the 2026-09-13 upstream import renamed the doll, kept searchable. Absent when the name did not change. */
+	/** Names IOPWiki used before the 2026-09-13 upstream import renamed the doll, kept searchable. Absent when the name did not change. */
 	aliases?: string[];
 }
 
