@@ -13,7 +13,7 @@ migrated on the assumption it would work.
 
 ### Phase 1 - Assets out of git
 
-Art, Spine rigs and Live2D models moved into a separate repository, `gfl-wiki-assets`, read over raw GitHub links. The site repo had
+Art, Spine rigs and Live2D models moved into a separate repository, `gfl-archive-assets`, read over raw GitHub links. The site repo had
 grown to roughly 6 GB with game art committed alongside code; afterwards it carried none. Every asset URL is built by a helper in
 `src/lib/assets.ts`, so the host stays switchable, and `assets-manifest.json` records what actually exists rather than the site
 guessing from an id.

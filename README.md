@@ -9,7 +9,7 @@ An unofficial archive for _Girls' Frontline_, the mobile game by MICA Team: T-Do
 [![Last commit](https://img.shields.io/github/last-commit/steve1316/gfl-archive)](https://github.com/steve1316/gfl-archive/commits/master)
 [![License](https://img.shields.io/github/license/steve1316/gfl-archive)](LICENSE)
 
-![A T-Doll page playing a skin's Live2D model](https://raw.githubusercontent.com/steve1316/gfl-wiki-assets/main/readme/tdoll-page.webp)
+![A T-Doll page playing a skin's Live2D model](https://raw.githubusercontent.com/steve1316/gfl-archive-assets/main/readme/tdoll-page.webp)
 
 ## Features
 
@@ -24,8 +24,8 @@ An unofficial archive for _Girls' Frontline_, the mobile game by MICA Team: T-Do
 - **Always current** - a daily job picks up new dolls, skins, equipment and art from the game data.
 
 <p>
-  <img src="https://raw.githubusercontent.com/steve1316/gfl-wiki-assets/main/readme/tdoll-index.webp" width="49%" alt="The T-Doll Index with its filters">
-  <img src="https://raw.githubusercontent.com/steve1316/gfl-wiki-assets/main/readme/hoc-page.webp" width="49%" alt="A HOC page">
+  <img src="https://raw.githubusercontent.com/steve1316/gfl-archive-assets/main/readme/tdoll-index.webp" width="49%" alt="The T-Doll Index with its filters">
+  <img src="https://raw.githubusercontent.com/steve1316/gfl-archive-assets/main/readme/hoc-page.webp" width="49%" alt="A HOC page">
 </p>
 
 ## Running locally
@@ -44,7 +44,7 @@ pnpm test:data    # data pipeline tests
 
 To serve the production build the way GitHub Pages does, but from the site root, run `docker compose up --build` and open http://localhost:8088.
 
-Art and animations are not in this repo. They load from [gfl-wiki-assets](https://github.com/steve1316/gfl-wiki-assets), set by `VITE_ASSET_BASE_URL` in `.env`.
+Art and animations are not in this repo. They load from [gfl-archive-assets](https://github.com/steve1316/gfl-archive-assets), set by `VITE_ASSET_BASE_URL` in `.env`.
 
 ## How it works
 
