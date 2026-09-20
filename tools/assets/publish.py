@@ -67,7 +67,7 @@ BRANCH = "rebuild"
 
 STAGING_TREE = "tools/assets/.staging/assets"
 
-REPO_TITLE = "gfl-wiki-assets"
+REPO_TITLE = "gfl-archive-assets"
 
 REPO_CONTENT = "Cards, full art, skill icons, equipment icons, HOC and fairy art, UI images and Spine chibis"
 
@@ -563,7 +563,7 @@ def fetch_tree_sizes(repo_title, branch="main", token=None, opener=urllib.reques
     A blobless clone cannot report sizes without downloading every blob, so the hosted total comes from the API instead.
 
     Args:
-        repo_title: The repo name, such as `gfl-wiki-assets`.
+        repo_title: The repo name, such as `gfl-archive-assets`.
         branch: The branch to list.
         token: Optional GitHub token, which raises the API rate limit.
         opener: Callable standing in for `urllib.request.urlopen` in tests.
@@ -745,7 +745,7 @@ def add(staging_tree, remote, branch="main", dry_run=False, sizes=None, token=No
 
     Args:
         staging_tree: The staging tree, such as `<staging>/assets`.
-        remote: The repo URL to clone and push, such as `git@github.com:steve1316/gfl-wiki-assets.git`.
+        remote: The repo URL to clone and push, such as `git@github.com:steve1316/gfl-archive-assets.git`.
         branch: The branch to commit onto.
         dry_run: Commit each batch in the throwaway clone and print it, but do not push any of them.
         sizes: Callable `(repo_title, branch)` returning hosted sizes by path. Defaults to the Git Trees API.

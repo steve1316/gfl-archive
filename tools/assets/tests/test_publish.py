@@ -199,14 +199,14 @@ class NamingTests(unittest.TestCase):
 
     def test_repo_name_from_remote_or_folder(self):
         """The name comes from the remote URL, or the folder when there is no remote."""
-        self.assertEqual(publish.repo_name("https://github.com/o/gfl-wiki-assets.git", "/x/clone"), "gfl-wiki-assets")
+        self.assertEqual(publish.repo_name("https://github.com/o/gfl-archive-assets.git", "/x/clone"), "gfl-archive-assets")
         self.assertEqual(publish.repo_name("git@github.com:o/gfl-wiki-assets-art.git", "/x/clone"), "gfl-wiki-assets-art")
         self.assertEqual(publish.repo_name("", "/x/assets-probe"), "assets-probe")
 
     def test_readme_names_source_and_rights(self):
         """The README names the repo, the ResData version and the rights holder."""
         text = publish.readme_text("2026082516")
-        self.assertIn("gfl-wiki-assets", text)
+        self.assertIn("gfl-archive-assets", text)
         self.assertIn("2026082516", text)
         self.assertIn("© Sunborn/MICA Team, mirrored for fan site use", text)
 
@@ -259,7 +259,7 @@ class PrepareTests(unittest.TestCase):
         lease = run_git(self.paths["origin"], "rev-parse", "main")
         self.assertIn(f"git -C {clone} push --force-with-lease=main:{lease} origin rebuild:main", output)
         self.assertNotIn("push --force origin", output)
-        self.assertLess(output.index("gfl-wiki-assets with"), output.index("site's master immediately"))
+        self.assertLess(output.index("gfl-archive-assets with"), output.index("site's master immediately"))
         self.assertIn("verify_live_assets.mjs", output)
         self.assertNotIn("gfl-wiki-assets-art", output)
         self.assertEqual(run_git(clone, "status", "--porcelain"), "")
@@ -728,12 +728,12 @@ class TreeSizeTests(unittest.TestCase):
     def test_blob_sizes(self):
         """Only blobs are counted."""
         body = {"truncated": False, "tree": [{"path": "a", "type": "blob", "size": 3}, {"path": "d", "type": "tree"}]}
-        self.assertEqual(publish.fetch_tree_sizes("gfl-wiki-assets", opener=self.response(body)), {"a": 3})
+        self.assertEqual(publish.fetch_tree_sizes("gfl-archive-assets", opener=self.response(body)), {"a": 3})
 
     def test_truncated_tree_stops(self):
         """A truncated listing cannot be trusted for the size limit."""
         with self.assertRaises(SystemExit):
-            publish.fetch_tree_sizes("gfl-wiki-assets", opener=self.response({"truncated": True, "tree": []}))
+            publish.fetch_tree_sizes("gfl-archive-assets", opener=self.response({"truncated": True, "tree": []}))
 
     def test_http_error_exits(self):
         """An HTTP error from the API exits with a readable message instead of a raw traceback."""
@@ -742,7 +742,7 @@ class TreeSizeTests(unittest.TestCase):
             raise urllib.error.HTTPError("https://api.github.com/x", 403, "rate limited", {}, None)
 
         with self.assertRaises(SystemExit):
-            publish.fetch_tree_sizes("gfl-wiki-assets", opener=failing_opener)
+            publish.fetch_tree_sizes("gfl-archive-assets", opener=failing_opener)
 
 
 if __name__ == "__main__":

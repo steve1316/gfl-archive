@@ -188,7 +188,7 @@ jobs:
           chmod 600 ~/.ssh/assets_key
           ssh-keyscan -t ed25519 github.com >> ~/.ssh/known_hosts
 
-      - name: Publish to gfl-wiki-assets
+      - name: Publish to gfl-archive-assets
         env:
           GIT_SSH_COMMAND: ssh -i ~/.ssh/assets_key -o IdentitiesOnly=yes
           GITHUB_TOKEN: ${{ github.token }}
@@ -196,7 +196,7 @@ jobs:
           flags=()
           if [ "$DRY_RUN" = true ]; then flags+=(--dry-run); fi
           python3 tools/assets/publish.py add --staging "$RUNNER_TEMP/staging/assets" \
-            --remote git@github.com:steve1316/gfl-wiki-assets.git --list "$RUNNER_TEMP/assets-paths.json" "${flags[@]}"
+            --remote git@github.com:steve1316/gfl-archive-assets.git --list "$RUNNER_TEMP/assets-paths.json" "${flags[@]}"
 
       - name: Wait for the new assets to go live
         if: env.DRY_RUN != 'true'
