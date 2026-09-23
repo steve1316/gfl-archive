@@ -8,6 +8,8 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 
 import DollCard from "./DollCard";
 import LoadError from "./LoadError";
+import SkinBackdrop from "./SkinBackdrop";
+import { skinKeyOf } from "../lib/assets";
 import { loadDoll } from "../lib/data";
 import type { TDoll } from "../types/tdoll";
 
@@ -25,7 +27,10 @@ const SWIPE_THRESHOLD = 40;
 const CARD_TEXT_HEIGHT = 84;
 
 const styles = {
+	// Relative and clipped, so the skin backdrop fills the hero and its slow zoom never spills past it.
 	root: {
+		position: "relative",
+		overflow: "hidden",
 		display: "flex",
 		alignItems: "stretch",
 		width: "100%"
@@ -53,7 +58,9 @@ const styles = {
 		pl: { xs: 0.5, sm: 2 },
 		"&:hover": { backgroundImage: `linear-gradient(to left, ${theme.palette.action.hover}, transparent)` }
 	}),
+	// Positioned, so it paints above the absolutely placed backdrop.
 	centre: {
+		position: "relative",
 		display: "flex",
 		flexDirection: "column",
 		alignItems: "center",
@@ -117,6 +124,20 @@ function cardProps(doll: TDoll) {
 }
 
 /**
+ * URL of a random full art for a doll, for the backdrop. A skin wins over the Mod, and the Mod shares the pool with the base art, so a doll
+ * only shows its own art when it has no skins.
+ *
+ * @param doll The doll.
+ * @returns The absolute URL, or null when the doll has no full art at all.
+ */
+function randomSkinUrl(doll: TDoll): string | null {
+	const forms = Object.entries(doll.forms);
+	const skinForms = forms.filter(([key]) => skinKeyOf(key) !== null);
+	const pool = (skinForms.length > 0 ? skinForms : forms).flatMap(([, assets]) => assets.images.full ?? []);
+	return pool[Math.floor(Math.random() * pool.length)] ?? null;
+}
+
+/**
  * Whether a keyboard event's target is a place the user types, so global shortcuts should back off.
  *
  * @param target The event target to check.
@@ -140,7 +161,8 @@ function isTypingTarget(target: EventTarget | null): boolean {
  * and MUI eases every value change, so each reset to 0 slid back down from full and every new set appeared to
  * start already filled. Advancing on `animationend` also means pausing the bar pauses the timer, with nothing
  * to keep in sync. Only a finger held on the carousel pauses it, since hovering or focusing it should not stop the
- * cycle. The pool arrives shuffled, so a set is simply the next slice of it.
+ * cycle. The pool arrives shuffled, so a set is simply the next slice of it. Behind the cards, `SkinBackdrop` shows one random skin per
+ * doll on screen, re-rolled every time a set is shown.
  *
  * @param props Component props.
  * @returns The carousel.
@@ -181,6 +203,7 @@ export default memo(function DollCarousel({ ids, onShuffle }: DollCarouselProps)
 	const perSet = isNarrow ? 1 : 3;
 	const width = isNarrow ? 200 : isMedium ? 150 : 200;
 	const shown = useMemo(() => entries.slice(start, start + perSet), [entries, start, perSet]);
+	const skins = useMemo(() => shown.map(randomSkinUrl), [shown]);
 
 	/** Show the next set, or ask for a fresh pool once this one has run out. */
 	const advance = useCallback(() => {
@@ -261,6 +284,9 @@ export default memo(function DollCarousel({ ids, onShuffle }: DollCarouselProps)
 
 	return (
 		<Box sx={styles.root} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onTouchCancel={handleTouchCancel}>
+			{/* The phone layout softens the art, since its one card covers most of the only slice. */}
+			<SkinBackdrop urls={skins} dwellMs={ADVANCE_MS} blur={isNarrow} paused={paused} reduceMotion={reduceMotion} />
+
 			<ButtonBase onClick={back} disabled={loading || start === 0} aria-label="previous" sx={SIDE_LEFT_SX}>
 				<ChevronLeftIcon />
 			</ButtonBase>
