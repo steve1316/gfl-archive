@@ -34,6 +34,8 @@ const styles = {
 	// Padding lives inside the carousel, so its side buttons reach the hero's top and bottom edges.
 	heroContent: { backgroundColor: "background.paper" },
 	cardGrid: { py: 8 },
+	// Centred, so a short last row sits under the middle of the rows above it.
+	cardRow: { justifyContent: "center" },
 	card: { height: "100%", display: "flex", flexDirection: "column" },
 	// 16:9, held open by padding because the image is a background.
 	cardMedia: { paddingTop: "56.25%" },
@@ -114,12 +116,13 @@ export default function Home() {
 			{/* End of Hero Unit */}
 
 			{/* Cards Section for Navigation */}
-			<Container sx={styles.cardGrid} maxWidth="md">
-				<Grid container spacing={4}>
+			{/* Wide enough for four cards a row. */}
+			<Container sx={styles.cardGrid} maxWidth="lg">
+				<Grid container spacing={4} sx={styles.cardRow}>
 					{SECTION_CARDS.map((card, index) => {
 						// Each card grows in 100ms after the one before it. This was a counter mutated during the map.
 						return (
-							<Grid key={card.title} size={{ xs: 12, sm: 6, md: 4 }}>
+							<Grid key={card.title} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
 								<Grow in={true} style={GROW_STYLE} timeout={600 + index * 100}>
 									<Card sx={styles.card}>
 										{/* The artwork links to the section too. It was a button that did nothing and had no name. */}
