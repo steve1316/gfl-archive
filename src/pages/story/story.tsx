@@ -20,7 +20,7 @@ import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
 import SettingsIcon from "@mui/icons-material/Settings";
 
-import { MOBILE_LANDSCAPE_QUERY, MobileStoryReader, StoryCorner, StorySettingsCard, StorySettingsPanel, StorySkipIcon, useIsMobile, useStorySettings } from "archive-kit";
+import { MOBILE_LANDSCAPE_QUERY, MobileStoryReader, StoryCorner, StoryLogPanel, StorySettingsCard, StorySettingsPanel, StorySkipIcon, useIsMobile, useStorySettings } from "archive-kit";
 import type { StoryChoice, StoryControl, StoryCornerProps, StoryCurrentLine, StoryLine } from "archive-kit";
 
 import LoadError from "../../components/LoadError";
@@ -30,6 +30,7 @@ import { storyAudioUrl, storyBackgroundUrl, storySpriteUrl, storyUiUrl } from ".
 import { loadStoryChapter, loadStoryIndex, loadStoryScene } from "../../lib/data";
 import { hasStoryAudio, hasStoryBackground, hasStorySprite, hasStoryUi, storySpriteStem } from "../../lib/processData";
 import { branchRegions, buildTimeline } from "../../lib/storyBranches";
+import type { BranchMap } from "../../lib/storyBranches";
 import { trackTitle } from "../../lib/storyMusic";
 import type { StoryBeat, StoryChapter, StoryChapterSummary, StoryMission, StoryPage, StoryScene } from "../../types/story";
 
@@ -521,7 +522,6 @@ const styles = {
 		[STACKED]: { height: "6.8em", "&::before": { content: '""', float: "right", width: "31%", height: "1.7em" } }
 	},
 	caret: { display: "inline-block", width: "0.5em", textAlign: "center", opacity: 0.7 },
-	backlogLine: { py: 0.75, borderBottom: "1px solid", borderColor: "divider" },
 	// Two readings of the same hint. A touch device has no keys to be told about, and was being told nothing at all instead.
 	// The drawer's way back to the hint, hidden alongside it wherever there is no keyboard to describe.
 	hintLink: { justifyContent: "flex-start", "@media (pointer: coarse)": { display: "none" } }
@@ -666,6 +666,50 @@ function lineCounts(beats: StoryBeat[]): LineCounts {
 		at.set(beat, seen);
 	}
 	return { total: seen, at };
+}
+
+/**
+ * Every line read so far, oldest first, ending at the page on screen. A track's start comes before the beat that starts it, and each answered
+ * choice before the first beat played at or after the point where the scene offered it, so the Log reads in the order the reader met them.
+ *
+ * @param played The beats the timeline plays.
+ * @param upTo Index of the beat on screen.
+ * @param page Index of the page on screen.
+ * @param order Each of the scene's beats by its place in the script.
+ * @param map The scene's branch map, or null before the scene loads.
+ * @param choices The branch picked at each answered choice, keyed by its index into the map's regions.
+ * @returns The lines.
+ */
+function logLines(played: StoryBeat[], upTo: number, page: number, order: Map<StoryBeat, number>, map: BranchMap | null, choices: Record<number, string>): StoryLine[] {
+	// Each answered choice and the picked option's text, in the order the scene offers them.
+	const picks = (map?.regions ?? []).flatMap((region, index) => {
+		const option = region.options.find((entry) => entry.label === choices[index]);
+		return option ? [{ start: region.start, text: option.text }] : [];
+	});
+	const lines: StoryLine[] = [];
+	let next = 0;
+	let playing: string | null = null;
+	played.slice(0, upTo + 1).forEach((beat, position) => {
+		const at = order.get(beat) ?? 0;
+		for (let pick = picks[next]; pick !== undefined && pick.start <= at; pick = picks[next]) {
+			lines.push({ speaker: null, text: pick.text, kind: "choice" });
+			next += 1;
+		}
+		// The last cue a beat names is the one it plays, as `stageAt` reads it, and only a change starts a track.
+		const cue = beat.ops.filter((op) => op.type === "bgm" && op.value).at(-1)?.value ?? null;
+		if (cue !== null && cue !== playing) {
+			playing = cue;
+			const title = trackTitle(cue);
+			if (title !== null) {
+				lines.push({ speaker: null, text: title, kind: "track" });
+			}
+		}
+		const pages = position === upTo ? beat.pages.slice(0, page + 1) : beat.pages;
+		for (const entry of pages) {
+			lines.push({ speaker: beat.speaker, text: pageText(entry) });
+		}
+	});
+	return lines;
 }
 
 /**
@@ -922,6 +966,8 @@ export default function Story() {
 	const advanceRef = useRef<() => void>(() => {});
 	// The looping music. One element reused across cues, so changing track does not leave the old one playing.
 	const musicRef = useRef<HTMLAudioElement | null>(null);
+	// The desktop player, which the Backlog panel sits in and whose clicks it spends on closing.
+	const playerRef = useRef<HTMLDivElement | null>(null);
 	// How much black sits either side of the scene, and whether it is enough to hold the chrome.
 	const frameRef = useRef<HTMLDivElement | null>(null);
 	const sideMargin = useSideMargin(frameRef);
@@ -1018,16 +1064,16 @@ export default function Story() {
 		}
 		return scenery ? `url(${scenery}) center / cover no-repeat` : backdrop(stage.background);
 	}, [stage.background, scenery, mission]);
-	const backlog = useMemo(() => beats.slice(0, beatIndex + 1).flatMap((entry) => entry.pages.map((entryPage) => ({ speaker: entry.speaker, text: pageText(entryPage) }))), [beats, beatIndex]);
-	// Every line read so far, the one on screen last, for the phone's reader. Bounded at the current page rather than the current beat, since a
-	// beat holds several pages and the later ones have not been reached yet.
-	const readLines = useMemo<StoryLine[]>(() => {
-		const earlier = beats.slice(0, beatIndex).flatMap((entry) => entry.pages.map((entryPage) => ({ speaker: entry.speaker, text: pageText(entryPage) })));
-		const read = beat === null ? [] : beat.pages.slice(0, pageIndex + 1).map((entryPage) => ({ speaker: beat.speaker, text: pageText(entryPage) }));
-		return [...earlier, ...read];
-	}, [beats, beatIndex, beat, pageIndex]);
-	// The last few of those before the one on screen, for the stacked layout to show above it.
-	const transcript = useMemo(() => (page === null ? readLines : readLines.slice(0, -1)).slice(-TRANSCRIPT_LINES), [readLines, page]);
+	// Each beat's place in the script, mapped once per scene, so the Log can put a pick before the first beat played after its choice.
+	const scriptOrder = useMemo(() => new Map((scene?.beats ?? []).map((entry, index): [StoryBeat, number] => [entry, index])), [scene]);
+	// Every line read so far, the one on screen last, with picks and track starts between them. The phone's reader and the desktop Backlog both
+	// read it. Bounded at the current page rather than the current beat, since a beat holds several pages and the later ones are not yet read.
+	const readLines = useMemo(() => logLines(beats, beatIndex, pageIndex, scriptOrder, branches, choices), [beats, beatIndex, pageIndex, scriptOrder, branches, choices]);
+	// The last few spoken lines before the one on screen, for the stacked layout to show above it. Picks and track starts stay in the Logs.
+	const transcript = useMemo(() => {
+		const spoken = readLines.filter((line) => line.kind === undefined);
+		return (page === null ? spoken : spoken.slice(0, -1)).slice(-TRANSCRIPT_LINES);
+	}, [readLines, page]);
 
 	useEffect(() => {
 		document.title = mission ? `${mission.title} - Story` : "Story";
@@ -1501,7 +1547,7 @@ export default function Story() {
 					sx={READER_SX}
 				/>
 			) : (
-				<Box sx={[styles.player, cinema ? styles.playerCinema : {}]} onClick={advance} role="button" tabIndex={-1} aria-label="Advance the scene">
+				<Box ref={playerRef} sx={[styles.player, cinema ? styles.playerCinema : {}]} onClick={advance} role="button" tabIndex={-1} aria-label="Advance the scene">
 					<Box
 						// Keyed on the beat so a shake restarts when the reader reaches another one, rather than only on the first.
 						key={shake ? `shake-${beatIndex}` : "stage"}
@@ -1624,6 +1670,8 @@ export default function Story() {
 							</Box>
 						)}
 					</Box>
+
+					{backlogOpen && <StoryLogPanel title="Backlog" lines={readLines} onClose={closeBacklog} container={playerRef} sx={READER_SX} />}
 				</Box>
 			)}
 
@@ -1728,27 +1776,6 @@ export default function Story() {
 					</Stack>
 				</Box>
 			</Drawer>
-
-			{/* The phone reader has its own Log, so this one, and the list it builds on every typed character, is desktop only. */}
-			{!phone && (
-				<Drawer anchor="right" open={backlogOpen} onClose={closeBacklog}>
-					<Box sx={{ width: { xs: 300, sm: 420 }, p: 2 }} role="presentation">
-						<Typography variant="h6" gutterBottom>
-							Backlog
-						</Typography>
-						{backlog.map((entry, position) => (
-							<Box key={position} sx={styles.backlogLine}>
-								{entry.speaker && (
-									<Typography variant="caption" sx={{ fontWeight: 700, color: "secondary.main", display: "block" }}>
-										{entry.speaker}
-									</Typography>
-								)}
-								<Typography variant="body2">{entry.text}</Typography>
-							</Box>
-						))}
-					</Box>
-				</Drawer>
-			)}
 		</Box>
 	);
 }
