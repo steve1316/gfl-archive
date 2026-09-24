@@ -345,7 +345,8 @@ export default function Navbar() {
 
 	return (
 		<Box component="div" sx={styles.root}>
-			<AppBar position="fixed">
+			{/* Marked so archive-kit's `HideNavbar` can take the bar away, as the phone story reader does on its side. */}
+			<AppBar position="fixed" data-archive-navbar="">
 				<Toolbar>
 					{isNarrow && searchOpen ? (
 						<>
@@ -380,8 +381,8 @@ export default function Navbar() {
 			</AppBar>
 
 			{/* Takes its height from the bar itself, so the eight pages that each guessed a top margin -
-			    four at 4rem and four at 5rem, against a bar that is 56, 64 or 48px - no longer have to. */}
-			<Toolbar />
+			    four at 4rem and four at 5rem, against a bar that is 56, 64 or 48px - no longer have to. Marked like the bar, so both hide together. */}
+			<Toolbar data-archive-navbar="" />
 
 			{/* Drawer */}
 			<Drawer style={{ width: "200px" }} anchor="left" open={drawerOpen} onClose={handleDrawerToggle} variant="temporary" slotProps={{ paper: { sx: styles.drawerPaper } }}>
