@@ -18,8 +18,9 @@ import VolumeOffIcon from "@mui/icons-material/VolumeOff";
 import FastForwardIcon from "@mui/icons-material/FastForward";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
+import SettingsIcon from "@mui/icons-material/Settings";
 
-import { MOBILE_LANDSCAPE_QUERY, MobileStoryReader, StorySettingsPanel, StorySkipIcon, useIsMobile, useStorySettings } from "archive-kit";
+import { MOBILE_LANDSCAPE_QUERY, MobileStoryReader, StorySettingsCard, StorySettingsPanel, StorySkipIcon, useIsMobile, useStorySettings } from "archive-kit";
 import type { StoryChoice, StoryControl, StoryCurrentLine, StoryLine } from "archive-kit";
 
 import LoadError from "../../components/LoadError";
@@ -310,9 +311,9 @@ const styles = {
 	// Where the margins are wide enough to hold the chrome, the three parts sit side by side and the scene is left alone.
 	playerCinema: { width: "100%", height: "100%", aspectRatio: "auto", display: "flex", alignItems: "stretch" },
 	stageCinema: { width: "auto", height: "100%", flex: "none" },
-	// Three across and three down, an exact fit for nine plates in the margin. Two columns needed four rows, which did not fit the
-	// height the browser leaves, and shortening the plates to make it fit would have put them under the size a thumb hits.
-	controlsCinema: { position: "static", order: -1, flex: "none", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0.75, alignContent: "center", px: 1 },
+	// Three across, so ten plates take four rows with Full alone on the last. Two columns needed more rows than the height the browser leaves,
+	// and shortening the plates to make them fit would have put them under the size a thumb hits. Relative, so the Settings card can open beside it.
+	controlsCinema: { position: "relative", order: -1, flex: "none", display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 0.75, alignContent: "center", px: 1 },
 	// The current line sits at the bottom of the column with whatever history fits above it.
 	stackCinema: { position: "static", flex: "none", display: "flex", flexDirection: "column", justifyContent: "flex-end", alignItems: "stretch", gap: 0.75, px: 1, py: 1 },
 	// The margin's own panel. The game's frame is a 511x158 drawing and this box is nearly square, so it is left off rather than
@@ -395,9 +396,10 @@ const styles = {
 		display: "flex",
 		gap: { xs: 0.5, sm: 1 },
 		[STACKED]: {
-			position: "static",
+			// Relative rather than static, so the Settings card can hang under the row.
+			position: "relative",
 			flex: "none",
-			// Nine plates will not sit on one line at 384px without going under the size a thumb hits, so the row wraps instead.
+			// Ten plates will not sit on one line at 384px without going under the size a thumb hits, so the row wraps instead.
 			flexWrap: "wrap",
 			rowGap: 0.75,
 			justifyContent: "center",
@@ -437,6 +439,10 @@ const styles = {
 	},
 	// A gap opens before each group of plates, so navigation and playback read as separate sets rather than one long row.
 	plateGap: { ml: { xs: 1, sm: 1.75 } },
+	// The Settings card hangs under the plates in the scene's corner, and centred under the row when it is stacked.
+	settingsCard: { top: "calc(100% + 8px)", left: 0, [STACKED]: { left: "50%", transform: "translateX(-50%)" } },
+	// In the wide layout's margin, the card opens beside the plate grid, over the scene's left edge.
+	settingsCardCinema: { top: "50%", left: "calc(100% + 8px)", transform: "translateY(-50%)" },
 	// The fullscreen control where the plates have left the scene: the bare icon in its corner, with no plate around it. The shadow
 	// is what keeps it readable, since plenty of scenes play on snow or on a white wash.
 	sceneFullscreen: {
@@ -877,6 +883,7 @@ export default function Story() {
 	const [auto, setAuto] = useState(false);
 	const [backlogOpen, setBacklogOpen] = useState(false);
 	const [menuOpen, setMenuOpen] = useState(false);
+	const [settingsOpen, setSettingsOpen] = useState(false);
 	// The old single volume, read once, seeds both new volumes until the reader changes a setting.
 	const [oldVolume] = useState(readOldVolume);
 	const settings = useStorySettings(SETTINGS_KEY, oldVolume === undefined ? undefined : { bgm: oldVolume, sfx: oldVolume });
@@ -1264,6 +1271,8 @@ export default function Story() {
 	}, []);
 	const openBacklog = useCallback(() => setBacklogOpen(true), []);
 	const closeBacklog = useCallback(() => setBacklogOpen(false), []);
+	const openSettings = useCallback(() => setSettingsOpen(true), []);
+	const closeSettings = useCallback(() => setSettingsOpen(false), []);
 	const toggleChapter = useCallback((id: number) => setOpenChapter((current) => (current === id ? null : id)), []);
 
 	// Autoplay waits for the page to finish typing, then holds before moving on.
@@ -1313,6 +1322,7 @@ export default function Story() {
 	// The plate row, described once and drawn from the description.
 	const plates = [
 		{ key: "menu", label: "Menu", aria: "Scenes menu", icon: <MenuIcon fontSize="small" />, onClick: openMenu, disabled: false, gap: false },
+		{ key: "settings", label: "Settings", aria: "Settings", icon: <SettingsIcon fontSize="small" />, onClick: openSettings, disabled: false, gap: false },
 		{ key: "back", label: "Back", aria: "Back a line", icon: <ChevronLeftIcon fontSize="small" />, onClick: back, disabled: beatIndex === 0 && pageIndex === 0, gap: true },
 		{ key: "next", label: "Next", aria: "Next line", icon: <ChevronRightIcon fontSize="small" />, onClick: advance, disabled: false, gap: false },
 		{ key: "reset", label: "Reset", aria: "Restart the scene", icon: <ReplayIcon fontSize="small" />, onClick: restart, disabled: false, gap: false },
@@ -1499,6 +1509,9 @@ export default function Story() {
 								</Box>
 							</Button>
 						))}
+						<StorySettingsCard open={settingsOpen} onClose={closeSettings} sx={cinema ? styles.settingsCardCinema : styles.settingsCard}>
+							<StorySettingsPanel value={settings} />
+						</StorySettingsCard>
 					</Box>
 
 					<Box sx={[styles.bottomStack, cinema ? styles.stackCinema : {}, cinema ? { width: sideMargin } : {}]}>
