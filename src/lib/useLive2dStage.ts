@@ -25,32 +25,26 @@ export interface Live2dStageState {
 }
 
 /**
- * Mount, drive and tear down a Live2D stage on a canvas. Shared by the fairy card, the fairy viewer and the HOC
- * card, the three places a model gets its own canvas.
+ * Mount, drive and tear down a Live2D stage on a canvas, for the full-page fairy and T-Doll Live2D viewers. The cards use archive-kit's
+ * animation stage through `components/Live2dStage.tsx` instead.
  *
- * Creates the stage whenever `modelUrl` is defined and destroys it whenever `modelUrl` changes, becomes undefined,
- * or the caller unmounts. A caller opts out of having any model mounted by passing undefined - the fairy card does
- * this while `Art` is selected, and the HOC card while a Spine rig is selected instead of `Live2D`. Only one stage
- * exists process-wide at a time (`createLive2dStage` destroys whatever stage came before it), and this hook's own
- * effect cleanup makes sure this caller's stage is torn down on every exit, so switching between stages or callers
- * never leaks a WebGL context. The canvas is measured once per model rather than tracked with a resize observer,
- * matching the fairy viewer and HOC card this replaces: `sizeRef` measures a separate box when the canvas's own
- * box cannot be trusted, such as the viewer's zoom container, which keeps a stable size while the canvas itself
- * carries a zoom transform.
+ * Creates the stage whenever `modelUrl` is defined and destroys it whenever `modelUrl` changes, becomes undefined, or the caller unmounts.
+ * Only one stage exists process-wide at a time (`createLive2dStage` destroys whatever stage came before it), and this hook's own effect
+ * cleanup makes sure this caller's stage is torn down on every exit, so switching models or pages never leaks a WebGL context. The canvas
+ * is measured once per model rather than tracked with a resize observer: `sizeRef` measures a separate box when the canvas's own box cannot
+ * be trusted, such as the viewer's zoom container, which keeps a stable size while the canvas itself carries a zoom transform.
  *
  * The stage is paused while its canvas is scrolled out of view or the page is hidden, and resumes where it left off on return, so a
  * model nobody can see stops costing CPU and GPU time.
  *
- * The runtime loader is imported dynamically, gated on `modelUrl` being defined, so a page that renders this hook
- * for a model-less fairy or HOC never parses `live2d.ts` at all. The same gate starts the runtime and model downloads through
- * `live2dPreload.ts` before that import, so they run in parallel instead of one after another.
+ * The runtime loader is imported dynamically, gated on `modelUrl` being defined, so a page that renders this hook without a model never
+ * parses `live2d.ts` at all. The same gate starts the runtime and model downloads through `live2dPreload.ts` before that import, so they run
+ * in parallel instead of one after another.
  *
- * The caller must give its canvas element `key={modelUrl}`. Swapping models on a canvas that stays mounted - the
- * fairy card's form toggle, or the viewer's star rank picker, while Live2D stays selected - tears down one WebGL
- * context and creates another on the same canvas node, which reliably fails with a `checkMaxIfStatementsInShader`
- * error from the vendored runtime. Keying the canvas by `modelUrl` makes React mount a fresh node for each model
- * instead, sidestepping the failure. The HOC card's canvas unmounts on every exit from Live2D regardless, but
- * carries the same key for consistency, in case a future caller reuses it across a model change without unmounting.
+ * The caller must give its canvas element `key={modelUrl}`. Swapping models on a canvas that stays mounted, such as the viewer's star rank
+ * picker while Live2D stays selected, tears down one WebGL context and creates another on the same canvas node, which reliably fails with a
+ * `checkMaxIfStatementsInShader` error from the vendored runtime. Keying the canvas by `modelUrl` makes React mount a fresh node for each
+ * model instead, sidestepping the failure.
  *
  * @param canvasRef The canvas to render into.
  * @param modelUrl URL of the model's `model3.json`, or undefined to keep the stage empty.
