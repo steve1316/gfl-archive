@@ -21,7 +21,7 @@ export function rarityColour(theme: Theme, rarity: number, isMod: boolean): stri
 	if (isMod) {
 		return MOD_RARITY_COLOUR;
 	}
-	return theme.palette.rarity[rarity as keyof typeof theme.palette.rarity] ?? theme.palette.text.secondary;
+	return theme.palette.rarity?.[rarity] ?? theme.palette.text.secondary;
 }
 
 /** Props for TypeBadge. */

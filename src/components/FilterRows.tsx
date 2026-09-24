@@ -94,7 +94,7 @@ export const RarityChipRow = memo(function RarityChipRow({ entries, onToggle }: 
 						selected={entry.selected}
 						value={entry.key}
 						onToggle={onToggle}
-						colour={theme.palette.rarity[entry.rarity as keyof typeof theme.palette.rarity]}
+						colour={theme.palette.rarity?.[entry.rarity]}
 						avatar={RARITY_AVATARS.get(entry.rarity)}
 					/>
 				</li>

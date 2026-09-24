@@ -115,14 +115,7 @@ export default memo(function DollBrowser({ data, placedIds, full, onPick }: Doll
 			/>
 			<Box sx={{ display: "flex", flexWrap: "wrap", my: 1.5 }}>
 				{RARITIES.map((entry) => (
-					<FilterChip
-						key={entry.key}
-						label={entry.label}
-						value={entry.key}
-						selected={rarities.has(entry.rarity)}
-						onToggle={toggleRarity}
-						colour={theme.palette.rarity[entry.rarity as keyof typeof theme.palette.rarity]}
-					/>
+					<FilterChip key={entry.key} label={entry.label} value={entry.key} selected={rarities.has(entry.rarity)} onToggle={toggleRarity} colour={theme.palette.rarity?.[entry.rarity]} />
 				))}
 				{TYPES.map((type) => (
 					<FilterChip key={type} label={type} value={type} selected={types.has(type)} onToggle={toggleType} colour={theme.palette.weaponType[type]} />
