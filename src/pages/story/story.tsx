@@ -19,6 +19,9 @@ import FastForwardIcon from "@mui/icons-material/FastForward";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
 
+import { MOBILE_LANDSCAPE_QUERY, MobileStoryReader, StorySkipIcon, useIsMobile } from "archive-kit";
+import type { StoryChoice, StoryControl, StoryCurrentLine, StoryLine } from "archive-kit";
+
 import LoadError from "../../components/LoadError";
 import StoryPanelFrame, { AMBER } from "../../components/StoryPanelFrame";
 import ScrollToTop from "../../components/ScrollToTop";
@@ -178,6 +181,15 @@ const TRANSCRIPT_LINES = 4;
  * scene is height-bound and narrow. A desktop leaves about 70 and a tablet none at all, and those keep the chrome over the scene.
  */
 const CINEMA_MIN_MARGIN = 170;
+
+/** The page on a phone: the whole screen on its side, where the reader hides the navbar. Last, so it wins over the bar heights in `main`. */
+const PHONE_MAIN_SX = { [`@media ${MOBILE_LANDSCAPE_QUERY}`]: { height: "100dvh" } } as const;
+
+/** The shared reader in this archive's colours: the cyan the story player already speaks in, and its amber for a picked choice. */
+const READER_SX = (theme: Theme) => ({ "--reader-accent": theme.palette.secondary.main, "--reader-pick": AMBER });
+
+/** The end of a scene on a phone: a note and the ways on, under the last line. */
+const PHONE_END_SX = { alignItems: "center", flexWrap: "wrap", rowGap: 0.5, mt: 1 } as const;
 
 /** Carried on every link into a scene from inside the player, telling it to open at the start rather than resume. */
 const OPEN_AT_START = { restart: true };
@@ -886,6 +898,8 @@ export default function Story() {
 	const canFullscreen = typeof document !== "undefined" && document.fullscreenEnabled;
 	// Read here as well as in the styles, since where the fullscreen control belongs is a question of markup, not of appearance.
 	const stacked = useMediaQuery(STACKED_QUERY);
+	// A phone reads through archive-kit's shared reader, so every archive reads the same on one. Desktop keeps the layout below.
+	const phone = useIsMobile();
 	const [muted, setMuted] = useState(() => {
 		try {
 			return window.localStorage.getItem(MUTED_KEY) === "1";
@@ -961,13 +975,15 @@ export default function Story() {
 		return scenery ? `url(${scenery}) center / cover no-repeat` : backdrop(stage.background);
 	}, [stage.background, scenery, mission]);
 	const backlog = useMemo(() => beats.slice(0, beatIndex + 1).flatMap((entry) => entry.pages.map((entryPage) => ({ speaker: entry.speaker, text: pageText(entryPage) }))), [beats, beatIndex]);
-	// The last few lines actually read, for the stacked layout to show above the current one. Bounded at the current page rather
-	// than the current beat, since a beat holds several pages and the later ones have not been reached yet.
-	const transcript = useMemo(() => {
+	// Every line read so far, the one on screen last, for the phone's reader. Bounded at the current page rather than the current beat, since a
+	// beat holds several pages and the later ones have not been reached yet.
+	const readLines = useMemo<StoryLine[]>(() => {
 		const earlier = beats.slice(0, beatIndex).flatMap((entry) => entry.pages.map((entryPage) => ({ speaker: entry.speaker, text: pageText(entryPage) })));
-		const read = beat === null ? [] : beat.pages.slice(0, pageIndex).map((entryPage) => ({ speaker: beat.speaker, text: pageText(entryPage) }));
-		return [...earlier, ...read].slice(-TRANSCRIPT_LINES);
+		const read = beat === null ? [] : beat.pages.slice(0, pageIndex + 1).map((entryPage) => ({ speaker: beat.speaker, text: pageText(entryPage) }));
+		return [...earlier, ...read];
 	}, [beats, beatIndex, beat, pageIndex]);
+	// The last few of those before the one on screen, for the stacked layout to show above it.
+	const transcript = useMemo(() => (page === null ? readLines : readLines.slice(0, -1)).slice(-TRANSCRIPT_LINES), [readLines, page]);
 
 	useEffect(() => {
 		document.title = mission ? `${mission.title} - Story` : "Story";
@@ -1324,8 +1340,74 @@ export default function Story() {
 			: [])
 	];
 
+	// The scene's layers, drawn by both layouts: the picture, the cast, and the washes and fade over them.
+	const stageLayers = (
+		<>
+			<Box sx={[styles.scene, { background: backing, opacity: stage.blankedTo === null ? 1 : 0 }]} />
+
+			<Box sx={styles.sprites}>
+				{cast.map((member, position) => {
+					const left = `${(100 * (position + 1)) / (cast.length + 1)}%`;
+					return member.calling ? (
+						<Box key={member.key} sx={[styles.comms, { left }]}>
+							<Box sx={styles.commsCrop}>
+								<Box component="img" src={member.src} alt={member.prefab} sx={styles.commsArt} />
+								<Box sx={styles.commsScreen} />
+							</Box>
+							<Box sx={styles.commsFrame} />
+						</Box>
+					) : (
+						<Box key={member.key} sx={[styles.spriteSlot, { left }]}>
+							<Box component="img" src={member.src} alt={member.prefab} sx={styles.spriteArt} />
+						</Box>
+					);
+				})}
+			</Box>
+
+			<Box sx={[styles.wash, { bgcolor: "#0a1020", opacity: stage.night ? 0.42 : 0 }]} />
+			<Box sx={[styles.wash, { bgcolor: "#000", opacity: stage.darkened ? 0.55 : 0 }]} />
+			{fade && <Box key={`fade-${beatIndex}`} sx={[styles.fade, { bgcolor: "#ffffff" }]} />}
+		</>
+	);
+
+	// The plates in the reader's own form. A tap on the scene or the box reads on, so there is no Next, and fullscreen comes from the reader.
+	const phoneControls = useMemo<StoryControl[]>(
+		() => [
+			{ key: "menu", label: "Menu", ariaLabel: "Scenes menu", icon: <MenuIcon />, onClick: openMenu },
+			{ key: "back", label: "Back", ariaLabel: "Back a line", icon: <ChevronLeftIcon />, onClick: back, disabled: beatIndex === 0 && pageIndex === 0, group: true },
+			{ key: "reset", label: "Reset", ariaLabel: "Restart the scene", icon: <ReplayIcon />, onClick: restart },
+			{ key: "log", label: "Log", ariaLabel: "Backlog", icon: <HistoryIcon />, onClick: openBacklog, group: true },
+			{ key: "auto", label: "Auto", ariaLabel: auto ? "Stop autoplay" : "Autoplay", icon: auto ? <AutorenewIcon /> : <PlayArrowIcon />, onClick: toggleAuto, active: auto, spin: true },
+			{ key: "sound", label: "Sound", ariaLabel: muted ? "Turn sound on" : "Turn sound off", icon: muted ? <VolumeOffIcon /> : <VolumeUpIcon />, onClick: toggleMuted },
+			{ key: "skip", label: "Skip", ariaLabel: "Skip to the end", icon: <StorySkipIcon />, onClick: toEnd, disabled: atEnd || choosing }
+		],
+		[openMenu, back, beatIndex, pageIndex, restart, openBacklog, auto, toggleAuto, muted, toggleMuted, toEnd, atEnd, choosing]
+	);
+	const phoneChoices = useMemo<StoryChoice[] | null>(
+		() => (pending ? pending.options.map((option) => ({ key: option.label, label: option.text, onPick: () => choose(timeline.pendingIndex, option.label) })) : null),
+		[pending, choose, timeline.pendingIndex]
+	);
+	// Only the phone shows it, so the desktop does not type each line twice.
+	const phoneCurrent: StoryCurrentLine | null = phone && !pending && page ? { speaker: beat?.speaker ?? null, text: renderTyped(page, typed), typing: !done } : null;
+	// The note at the end of the scene and the ways on, which each layout sets in its own row.
+	const endNote = ended && (
+		<>
+			<Box component="span" sx={styles.endingLabel}>
+				Scene end.
+			</Box>
+			{nextScene && (
+				<Button size="small" color="secondary" component={RouterLink} to={`/story/${chapterId}/${encodeURIComponent(nextScene)}`} state={OPEN_AT_START}>
+					Next scene
+				</Button>
+			)}
+			<Button size="small" onClick={restart}>
+				Read again
+			</Button>
+		</>
+	);
+
 	return (
-		<Box component="main" ref={frameRef} sx={styles.main}>
+		<Box component="main" ref={frameRef} sx={phone && scene ? [styles.main, PHONE_MAIN_SX] : styles.main}>
 			<ScrollToTop />
 			{failed ? (
 				<LoadError what="this scene" onRetry={retry} titleComponent="h2" />
@@ -1333,6 +1415,31 @@ export default function Story() {
 				<Box sx={{ display: "flex", justifyContent: "center", py: 6 }}>
 					<CircularProgress aria-label="Loading the scene" />
 				</Box>
+			) : phone ? (
+				<MobileStoryReader
+					scene={
+						<Box key={shake ? `shake-${beatIndex}` : "stage"} sx={[styles.stage, { bgcolor: stage.blankedTo === "white" ? "#ffffff" : "#000000" }, shake ? shakeSx(shake) : {}]}>
+							{stageLayers}
+						</Box>
+					}
+					caption={`${mission?.title ?? sceneName} \u00b7 Beat ${beatIndex + 1} of ${beats.length}${stage.bgm ? ` \u00b7 ${stage.bgm}` : ""}`}
+					controls={phoneControls}
+					lines={readLines}
+					current={phoneCurrent}
+					choices={phoneChoices}
+					end={
+						endNote && (
+							<Stack direction="row" spacing={1.5} sx={PHONE_END_SX}>
+								{endNote}
+							</Stack>
+						)
+					}
+					onAdvance={advance}
+					logOpen={backlogOpen}
+					onCloseLog={closeBacklog}
+					logTitle="Backlog"
+					sx={READER_SX}
+				/>
 			) : (
 				<Box sx={[styles.player, cinema ? styles.playerCinema : {}]} onClick={advance} role="button" tabIndex={-1} aria-label="Advance the scene">
 					<Box
@@ -1340,30 +1447,7 @@ export default function Story() {
 						key={shake ? `shake-${beatIndex}` : "stage"}
 						sx={[styles.stage, cinema ? styles.stageCinema : {}, { bgcolor: stage.blankedTo === "white" ? "#ffffff" : "#000000" }, shake ? shakeSx(shake) : {}]}
 					>
-						<Box sx={[styles.scene, { background: backing, opacity: stage.blankedTo === null ? 1 : 0 }]} />
-
-						<Box sx={styles.sprites}>
-							{cast.map((member, position) => {
-								const left = `${(100 * (position + 1)) / (cast.length + 1)}%`;
-								return member.calling ? (
-									<Box key={member.key} sx={[styles.comms, { left }]}>
-										<Box sx={styles.commsCrop}>
-											<Box component="img" src={member.src} alt={member.prefab} sx={styles.commsArt} />
-											<Box sx={styles.commsScreen} />
-										</Box>
-										<Box sx={styles.commsFrame} />
-									</Box>
-								) : (
-									<Box key={member.key} sx={[styles.spriteSlot, { left }]}>
-										<Box component="img" src={member.src} alt={member.prefab} sx={styles.spriteArt} />
-									</Box>
-								);
-							})}
-						</Box>
-
-						<Box sx={[styles.wash, { bgcolor: "#0a1020", opacity: stage.night ? 0.42 : 0 }]} />
-						<Box sx={[styles.wash, { bgcolor: "#000", opacity: stage.darkened ? 0.55 : 0 }]} />
-						{fade && <Box key={`fade-${beatIndex}`} sx={[styles.fade, { bgcolor: "#ffffff" }]} />}
+						{stageLayers}
 
 						{canFullscreen && stacked && (
 							<IconButton
@@ -1472,19 +1556,9 @@ export default function Story() {
 										)}
 									</Typography>
 								</Box>
-								{ended && (
+								{endNote && (
 									<Stack direction="row" spacing={1.5} sx={cinema ? styles.endingCinema : styles.ending} onClick={stopBubbling}>
-										<Box component="span" sx={styles.endingLabel}>
-											Scene end.
-										</Box>
-										{nextScene && (
-											<Button size="small" color="secondary" component={RouterLink} to={`/story/${chapterId}/${encodeURIComponent(nextScene)}`} state={OPEN_AT_START}>
-												Next scene
-											</Button>
-										)}
-										<Button size="small" onClick={restart}>
-											Read again
-										</Button>
+										{endNote}
 									</Stack>
 								)}
 							</Box>
@@ -1607,23 +1681,26 @@ export default function Story() {
 				</Box>
 			</Drawer>
 
-			<Drawer anchor="right" open={backlogOpen} onClose={closeBacklog}>
-				<Box sx={{ width: { xs: 300, sm: 420 }, p: 2 }} role="presentation">
-					<Typography variant="h6" gutterBottom>
-						Backlog
-					</Typography>
-					{backlog.map((entry, position) => (
-						<Box key={position} sx={styles.backlogLine}>
-							{entry.speaker && (
-								<Typography variant="caption" sx={{ fontWeight: 700, color: "secondary.main", display: "block" }}>
-									{entry.speaker}
-								</Typography>
-							)}
-							<Typography variant="body2">{entry.text}</Typography>
-						</Box>
-					))}
-				</Box>
-			</Drawer>
+			{/* The phone reader has its own Log, so this one, and the list it builds on every typed character, is desktop only. */}
+			{!phone && (
+				<Drawer anchor="right" open={backlogOpen} onClose={closeBacklog}>
+					<Box sx={{ width: { xs: 300, sm: 420 }, p: 2 }} role="presentation">
+						<Typography variant="h6" gutterBottom>
+							Backlog
+						</Typography>
+						{backlog.map((entry, position) => (
+							<Box key={position} sx={styles.backlogLine}>
+								{entry.speaker && (
+									<Typography variant="caption" sx={{ fontWeight: 700, color: "secondary.main", display: "block" }}>
+										{entry.speaker}
+									</Typography>
+								)}
+								<Typography variant="body2">{entry.text}</Typography>
+							</Box>
+						))}
+					</Box>
+				</Drawer>
+			)}
 		</Box>
 	);
 }
