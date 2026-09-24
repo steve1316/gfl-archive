@@ -114,8 +114,8 @@ interface PixiApplication {
 		scale: { set(value: number): void };
 		position: { set(x: number, y: number): void };
 	};
-	/** The renderer, resized with the stage box. */
-	renderer: { resize(width: number, height: number): void };
+	/** The renderer, resized with the stage box. Its interaction plugin polls the system ticker unless told not to. */
+	renderer: { resize(width: number, height: number): void; plugins: { interaction: { useSystemTicker: boolean } } };
 	/** Draw one frame. */
 	render(): void;
 	/** Start the application's render loop. */
@@ -378,6 +378,8 @@ export async function createLive2dRuntime(host: HTMLElement): Promise<StageRunti
 		resolution: Math.min(window.devicePixelRatio || 1, 3),
 		autoDensity: true
 	});
+	// The stage handles every pointer itself. Pixi's interaction manager would otherwise poll on the system ticker every frame, off screen too.
+	app.renderer.plugins.interaction.useSystemTicker = false;
 	let model: Live2dModel | null = null;
 
 	/**

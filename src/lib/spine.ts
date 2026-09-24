@@ -740,6 +740,8 @@ export async function createSpineRuntime(host: HTMLElement): Promise<StageRuntim
 	// Clamped, because fill cost grows with the square of this and there is nothing to gain past 3x. Fixed for the stage's lifetime.
 	const resolution = Math.min(window.devicePixelRatio || 1, 3);
 	const app = new PIXI.Application(width, height, { backgroundColor: 0x000000, transparent: true, antialias: true, resolution, autoResize: true, autoStart: false });
+	// The stage handles every pointer itself. Pixi's interaction manager would otherwise poll on the shared ticker every frame, off screen too.
+	app.renderer.plugins.interaction?.removeEvents();
 	host.appendChild(app.view);
 
 	let spine: any = null;
