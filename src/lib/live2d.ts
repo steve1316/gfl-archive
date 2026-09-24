@@ -10,6 +10,8 @@
  * actually wants a model, which keeps its ~790 KB off every other route.
  */
 
+import type { StageRuntime } from "archive-kit";
+
 import { LIVE2D_RUNTIME_BASE, LIVE2D_RUNTIME_SCRIPTS } from "./live2dPreload";
 import { claimPixiGlobal, withLoadLock } from "./pixiRuntimeLock";
 
@@ -46,12 +48,26 @@ interface Live2dModel {
 	 * @returns Whether the motion started.
 	 */
 	motion(group: string, index: number, priority: number): Promise<boolean>;
+	/**
+	 * Advance the model's clock. The next render applies it. Only needed while `autoUpdate` is off.
+	 *
+	 * @param deltaMs Milliseconds since the last update.
+	 */
+	update(deltaMs: number): void;
+	/**
+	 * Free the model and its textures.
+	 *
+	 * @param options Which of its children and textures to destroy along with it.
+	 */
+	destroy(options?: { children?: boolean; texture?: boolean; baseTexture?: boolean }): void;
 }
 
 /** Options accepted by `Live2DModel.from`. */
 interface Live2dModelOptions {
 	/** Disables the runtime's own pointer-following and tap handling, since callers drive interaction through `Live2dStage` instead. */
 	autoInteract: boolean;
+	/** Whether the model advances on the shared ticker. Off when a stage drives its frames by hand. */
+	autoUpdate?: boolean;
 }
 
 /** The pixi-live2d-display plugin namespace pixi.js exposes as `PIXI.live2d` once all three scripts have loaded. */
@@ -83,11 +99,25 @@ interface PixiApplicationOptions {
 	transparent: boolean;
 	/** Whether the renderer starts its own render loop immediately. */
 	autoStart: boolean;
+	/** Device pixels per CSS pixel for the backing store. */
+	resolution?: number;
+	/** Whether the canvas's CSS size follows the renderer's CSS size. */
+	autoDensity?: boolean;
 }
 
 /** A pixi.js `Application` instance, narrowed to what this module calls. */
 interface PixiApplication {
-	stage: { addChild(child: Live2dModel): void };
+	/** The root container. Its scale and position carry the stage's zoom and pan. */
+	stage: {
+		addChild(child: Live2dModel): void;
+		removeChild(child: Live2dModel): void;
+		scale: { set(value: number): void };
+		position: { set(x: number, y: number): void };
+	};
+	/** The renderer, resized with the stage box. */
+	renderer: { resize(width: number, height: number): void };
+	/** Draw one frame. */
+	render(): void;
 	/** Start the application's render loop. */
 	start(): void;
 	/** Stop the application's render loop. The canvas keeps showing the last frame it drew. */
@@ -215,6 +245,22 @@ export interface Live2dStage {
 }
 
 /**
+ * Scale and centre a model to fill 95% of a box. Its natural size is read at scale 1, since pixi.js reports width and height already
+ * multiplied by the current scale.
+ *
+ * @param model The model to fit.
+ * @param width Box width in stage units.
+ * @param height Box height in stage units.
+ */
+function fitModel(model: Live2dModel, width: number, height: number): void {
+	model.scale.set(1);
+	const fit = Math.min(width / model.width, height / model.height) * 0.95;
+	model.scale.set(fit);
+	model.x = (width - model.width) / 2;
+	model.y = (height - model.height) / 2;
+}
+
+/**
  * Build a Live2D stage on a canvas and mount a model. Only one stage may exist at a time: this destroys whatever
  * stage a previous call created, so navigating between models never leaks a WebGL context.
  *
@@ -250,12 +296,7 @@ export async function createLive2dStage(canvas: HTMLCanvasElement, modelUrl: str
 		throw error;
 	}
 
-	// Fit against the model's natural size, then set scale, then re-read width/height: pixi.js reports both already
-	// multiplied by the current scale, so centring afterwards needs no second multiplication.
-	const fit = Math.min(width / model.width, height / model.height) * 0.95;
-	model.scale.set(fit);
-	model.x = (width - model.width) / 2;
-	model.y = (height - model.height) / 2;
+	fitModel(model, width, height);
 	app.stage.addChild(model);
 
 	let destroyed = false;
@@ -307,4 +348,85 @@ export async function createLive2dStage(canvas: HTMLCanvasElement, modelUrl: str
 	};
 	currentStage = stage;
 	return stage;
+}
+
+/**
+ * Build a Live2D runtime for archive-kit's `AnimationStage` inside `host`. One PixiJS application and one canvas serve every model the stage
+ * shows, and a new model swaps inside it. Tearing down a context and making another on the same canvas fails in the vendored runtime with
+ * `checkMaxIfStatementsInShader`, so the context is never recreated. Frames come from the stage through `update`.
+ *
+ * @param host The element to mount the canvas in.
+ * @returns The runtime.
+ */
+export async function createLive2dRuntime(host: HTMLElement): Promise<StageRuntime<string>> {
+	await loadLive2dRuntime();
+	const PIXI = live2dPixi;
+	if (!PIXI) {
+		throw new Error("Live2D runtime failed to load");
+	}
+	const canvas = document.createElement("canvas");
+	host.appendChild(canvas);
+	let width = Math.max(1, host.clientWidth);
+	let height = Math.max(1, host.clientHeight);
+	const app = new PIXI.Application({
+		view: canvas,
+		width,
+		height,
+		backgroundColor: 0x000000,
+		transparent: true,
+		autoStart: false,
+		resolution: Math.min(window.devicePixelRatio || 1, 3),
+		autoDensity: true
+	});
+	let model: Live2dModel | null = null;
+
+	/**
+	 * Play a motion group, ignoring a rejected promise since playing is fire-and-forget.
+	 *
+	 * @param group Motion group name, exactly as the model's `model3.json` has it.
+	 */
+	const play = (group: string) => {
+		model?.motion(group, 0, PIXI.live2d.MotionPriority.FORCE).catch(() => undefined);
+	};
+
+	return {
+		async load(modelUrl, signal) {
+			const next = await PIXI.live2d.Live2DModel.from(modelUrl, { autoInteract: false, autoUpdate: false });
+			if (signal.aborted) {
+				next.destroy({ children: true, texture: true, baseTexture: true });
+				return null;
+			}
+			if (model) {
+				app.stage.removeChild(model);
+				model.destroy({ children: true, texture: true, baseTexture: true });
+			}
+			model = next;
+			fitModel(model, width, height);
+			app.stage.addChild(model);
+			const groups = Object.keys(model.internalModel.motionManager.definitions);
+			play(groups.includes(IDLE_MOTION_GROUP) ? IDLE_MOTION_GROUP : (groups[0] ?? IDLE_MOTION_GROUP));
+			return null;
+		},
+		play,
+		resize(nextWidth, nextHeight) {
+			width = nextWidth;
+			height = nextHeight;
+			app.renderer.resize(width, height);
+			if (model) {
+				fitModel(model, width, height);
+			}
+		},
+		setView(scale, x, y) {
+			app.stage.scale.set(scale);
+			app.stage.position.set((width / 2) * (1 - scale) + x, (height / 2) * (1 - scale) + y);
+		},
+		update(seconds) {
+			model?.update(seconds * 1000);
+			app.render();
+		},
+		dispose() {
+			app.destroy(true, { children: true, texture: true, baseTexture: true });
+			model = null;
+		}
+	};
 }
