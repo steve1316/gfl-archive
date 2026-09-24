@@ -302,6 +302,11 @@ export function parseBeat(line) {
 	if (text !== null && text !== "") {
 		beat.pages = readText(text);
 	}
+	// A voice over a CG is written as its one character heard but not seen, with no speaker tag, so that character is the speaker.
+	const [only] = beat.sprites;
+	if (beat.speaker === null && !beat.narrator && beat.pages.length > 0 && beat.sprites.length === 1 && only && !only.shown) {
+		beat.speaker = only.prefab;
+	}
 	return beat;
 }
 

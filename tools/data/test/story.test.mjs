@@ -102,6 +102,23 @@ test("a prefab with no expression is heard but not seen", () => {
 	assert.equal(parseBeat("M4A1(0)<Speaker>M4A1</Speaker>||:Line").sprites[0].shown, true);
 });
 
+test("an untagged line with one character heard but not seen names them as the speaker", () => {
+	assert.equal(parseBeat("Alpha()||:Line").speaker, "Alpha");
+	assert.equal(parseBeat("Alpha()||<BGM>BGM_Test</BGM>:Line").speaker, "Alpha");
+});
+
+test("the speaker tag still wins over a character heard but not seen", () => {
+	assert.equal(parseBeat("Alpha()<Speaker>Beta</Speaker>||:Line").speaker, "Beta");
+});
+
+test("no speaker is guessed for a visible character, narration, or a line with no text", () => {
+	assert.equal(parseBeat("Alpha(0)||:Line").speaker, null);
+	assert.equal(parseBeat("()||:Line").speaker, null);
+	assert.equal(parseBeat("Alpha()<narrator>||:Line").speaker, null);
+	assert.equal(parseBeat("Alpha()||<BIN>1</BIN>").speaker, null);
+	assert.equal(parseBeat("Alpha();Beta()||:Line").speaker, null);
+});
+
 test("the two spellings of a sprite tag land on one name", () => {
 	assert.deepEqual(parseBeat("Alpha(0)<position>9</position>||:Line").sprites[0].tags, { spritePosition: "9" });
 	assert.deepEqual(parseBeat("Alpha(0)<\u901a\u8baf\u6846>||:Line").sprites[0].tags, { commsBox: "" });
