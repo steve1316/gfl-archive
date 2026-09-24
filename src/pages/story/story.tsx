@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent, RefObject } from "react";
 import { Link as RouterLink, useLocation, useParams } from "react-router-dom";
 
-import { Box, Button, CircularProgress, Drawer, IconButton, Slider, Stack, Typography, useMediaQuery } from "@mui/material";
+import { Box, Button, CircularProgress, Drawer, IconButton, Stack, Typography, useMediaQuery } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material";
 
 import MenuIcon from "@mui/icons-material/Menu";
@@ -19,7 +19,7 @@ import FastForwardIcon from "@mui/icons-material/FastForward";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
 
-import { MOBILE_LANDSCAPE_QUERY, MobileStoryReader, StorySkipIcon, useIsMobile } from "archive-kit";
+import { MOBILE_LANDSCAPE_QUERY, MobileStoryReader, StorySettingsPanel, StorySkipIcon, useIsMobile, useStorySettings } from "archive-kit";
 import type { StoryChoice, StoryControl, StoryCurrentLine, StoryLine } from "archive-kit";
 
 import LoadError from "../../components/LoadError";
@@ -31,7 +31,7 @@ import { hasStoryAudio, hasStoryBackground, hasStorySprite, hasStoryUi, storySpr
 import { branchRegions, buildTimeline } from "../../lib/storyBranches";
 import type { StoryBeat, StoryChapter, StoryChapterSummary, StoryMission, StoryPage, StoryScene } from "../../types/story";
 
-/** How long one character takes to type at the middle speed, in milliseconds. */
+/** How long one character takes to type before the reader's speed and `SPEED_BASE` apply, in milliseconds. */
 const TYPE_MS = 28;
 
 /** How long autoplay waits on a finished page before advancing, in milliseconds. */
@@ -43,21 +43,20 @@ const PROGRESS_KEY = "storyProgress";
 /** Where the reader's choice to silence the story is remembered. */
 const MUTED_KEY = "storyMuted";
 
-/** Where the reader's volume setting is remembered. */
+/** Where the old single volume setting was remembered. Read once, to seed both new volumes. */
 const VOLUME_KEY = "storyVolume";
+
+/** Where the reader's story settings are kept. AK shares this origin, so the key carries the site's name. */
+const SETTINGS_KEY = "gfl.storySettings";
 
 /** Where the fact that the reader has already been shown the keys is remembered. */
 const HINT_KEY = "storyKeysSeen";
 
 /**
- * The text speed slider: how many characters a second, as a multiple of `TYPE_MS`.
- *
- * It tops out at what used to be the default, which read too fast to follow, and opens a step below that.
+ * What the text speed setting's 1x means here: the old speed slider's default. The game's own pace read too fast to follow, so the reader's
+ * speed multiplies this rather than `TYPE_MS` alone.
  */
-const SPEED_MIN = 0.25;
-const SPEED_MAX = 1;
-const SPEED_STEP = 0.25;
-const SPEED_DEFAULT = 0.75;
+const SPEED_BASE = 0.75;
 
 /** The game's own playback types, as the headings the scene menu groups chapters under. */
 const CHAPTER_GROUPS: { type: number; label: string }[] = [
@@ -69,7 +68,7 @@ const CHAPTER_GROUPS: { type: number; label: string }[] = [
 /**
  * How loud the music sits under the dialogue, and how loud a sound effect fires over it.
  *
- * These are the balance between the two. The reader's own volume setting scales both.
+ * These are the balance between the two. The reader's BGM and SFX settings scale each.
  */
 const MUSIC_VOLUME = 0.35;
 const EFFECT_VOLUME = 0.6;
@@ -795,6 +794,22 @@ function shakeAt(beat: StoryBeat | null): Shake | null {
 }
 
 /**
+ * The reader's volume from the old single slider, which seeds both new volumes until the reader changes a setting.
+ *
+ * @returns The saved volume, 0 to 1, or undefined when none was saved or storage is unavailable.
+ */
+function readOldVolume(): number | undefined {
+	try {
+		// Read as a string first: `Number(null)` is 0, which would silently open a reader who never set it on mute.
+		const raw = window.localStorage.getItem(VOLUME_KEY);
+		const saved = raw === null ? Number.NaN : Number(raw);
+		return Number.isFinite(saved) && saved >= 0 && saved <= 1 ? saved : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
  * Read where the reader had got to in a scene.
  *
  * Entries written before the player understood branches are a bare number. They restore as a beat index with no choices, which
@@ -860,21 +875,13 @@ export default function Story() {
 	// for one frame, which read as the line rolling backwards before it typed out.
 	const [typing, setTyping] = useState({ text: "", count: 0 });
 	const [auto, setAuto] = useState(false);
-	const [speed, setSpeed] = useState(SPEED_DEFAULT);
 	const [backlogOpen, setBacklogOpen] = useState(false);
 	const [menuOpen, setMenuOpen] = useState(false);
+	// The old single volume, read once, seeds both new volumes until the reader changes a setting.
+	const [oldVolume] = useState(readOldVolume);
+	const settings = useStorySettings(SETTINGS_KEY, oldVolume === undefined ? undefined : { bgm: oldVolume, sfx: oldVolume });
 	// The chapter list behind the scene menu, fetched the first time the menu is opened rather than on every scene.
 	const [menuChapters, setMenuChapters] = useState<StoryChapterSummary[] | null>(null);
-	const [volume, setVolume] = useState(() => {
-		try {
-			// Read as a string first: `Number(null)` is 0, which would silently open a reader who has never set it on mute.
-			const raw = window.localStorage.getItem(VOLUME_KEY);
-			const saved = raw === null ? Number.NaN : Number(raw);
-			return Number.isFinite(saved) && saved >= 0 && saved <= 1 ? saved : 1;
-		} catch {
-			return 1;
-		}
-	});
 	// Which chapter is open in the scene menu, and the missions of every chapter opened so far.
 	const [openChapter, setOpenChapter] = useState<number | null>(null);
 	const [chapterMissions, setChapterMissions] = useState<Record<number, StoryMission[]>>({});
@@ -1048,17 +1055,20 @@ export default function Story() {
 		if (full === "") {
 			return;
 		}
-		const interval = window.setInterval(() => {
-			setTyping((current) => {
-				if (current.count >= full.length) {
-					window.clearInterval(interval);
-					return current;
-				}
-				return { text: full, count: current.count + 1 };
-			});
-		}, TYPE_MS / speed);
+		const interval = window.setInterval(
+			() => {
+				setTyping((current) => {
+					if (current.count >= full.length) {
+						window.clearInterval(interval);
+						return current;
+					}
+					return { text: full, count: current.count + 1 };
+				});
+			},
+			TYPE_MS / (SPEED_BASE * settings.speed)
+		);
 		return () => window.clearInterval(interval);
-	}, [full, speed]);
+	}, [full, settings.speed]);
 
 	// Fetched ahead of the reader, a few at a time, so a character or a change of place is already in the cache when its beat
 	// arrives. Nothing here blocks the scene: the pictures are only being warmed, and the stage draws whatever has landed.
@@ -1118,7 +1128,6 @@ export default function Story() {
 		if (!element.src.endsWith(wanted.slice(wanted.lastIndexOf("/") + 1))) {
 			element.src = wanted;
 		}
-		element.volume = MUSIC_VOLUME * volume;
 		if (!muted) {
 			// A browser may refuse to start audio before the reader has interacted, and advancing the scene is that interaction.
 			void element.play().catch(() => {});
@@ -1133,9 +1142,23 @@ export default function Story() {
 				artwork: art !== null && hasStoryBackground(art) ? [{ src: storyBackgroundUrl(art), type: "image/webp" }] : []
 			});
 		}
-	}, [stage.bgm, stage.background, muted, volume, mission, sceneName]);
+	}, [stage.bgm, stage.background, muted, mission, sceneName]);
 
-	// Sound effects fire once as their beat is reached, over whatever music is playing.
+	// The music's volume follows the BGM setting live, apart from the effect above, so moving the slider leaves playback alone.
+	useEffect(() => {
+		if (musicRef.current) {
+			musicRef.current.volume = MUSIC_VOLUME * settings.bgm;
+		}
+	}, [settings.bgm]);
+
+	// Read through a ref, so moving the SFX slider does not fire the beat's sounds again.
+	const sfxRef = useRef(settings.sfx);
+	useEffect(() => {
+		sfxRef.current = settings.sfx;
+	}, [settings.sfx]);
+
+	// Sound effects fire once as their beat is reached, over whatever music is playing. They are one-shots, so a new SFX level applies from the
+	// next sound.
 	useEffect(() => {
 		if (muted || !beat) {
 			return;
@@ -1145,10 +1168,10 @@ export default function Story() {
 				continue;
 			}
 			const effect = new Audio(storyAudioUrl(op.value));
-			effect.volume = EFFECT_VOLUME * volume;
+			effect.volume = EFFECT_VOLUME * sfxRef.current;
 			void effect.play().catch(() => {});
 		}
-	}, [beat, muted, volume]);
+	}, [beat, muted]);
 
 	useEffect(() => {
 		try {
@@ -1241,26 +1264,16 @@ export default function Story() {
 	}, []);
 	const openBacklog = useCallback(() => setBacklogOpen(true), []);
 	const closeBacklog = useCallback(() => setBacklogOpen(false), []);
-	const changeVolume = useCallback((_event: Event, value: number | number[]) => {
-		const next = Array.isArray(value) ? (value[0] ?? 1) : value;
-		setVolume(next);
-		try {
-			window.localStorage.setItem(VOLUME_KEY, String(next));
-		} catch {
-			// Losing the setting only costs the reader their level next time, which is not worth failing over.
-		}
-	}, []);
 	const toggleChapter = useCallback((id: number) => setOpenChapter((current) => (current === id ? null : id)), []);
-	const changeSpeed = useCallback((_event: Event, value: number | number[]) => setSpeed(Array.isArray(value) ? (value[0] ?? 1) : value), []);
 
 	// Autoplay waits for the page to finish typing, then holds before moving on.
 	useEffect(() => {
 		if (!auto || !done || choosing) {
 			return;
 		}
-		const timer = window.setTimeout(() => advanceRef.current(), AUTO_HOLD_MS / speed);
+		const timer = window.setTimeout(() => advanceRef.current(), AUTO_HOLD_MS / (SPEED_BASE * settings.speed));
 		return () => window.clearTimeout(timer);
-	}, [auto, done, choosing, speed, beatIndex, pageIndex]);
+	}, [auto, done, choosing, settings.speed, beatIndex, pageIndex]);
 
 	useEffect(() => {
 		const onKey = (event: KeyboardEvent) => {
@@ -1438,6 +1451,8 @@ export default function Story() {
 					logOpen={backlogOpen}
 					onCloseLog={closeBacklog}
 					logTitle="Backlog"
+					settings={<StorySettingsPanel value={settings} sceneSize />}
+					sceneSize={settings.sceneSize}
 					sx={READER_SX}
 				/>
 			) : (
@@ -1662,18 +1677,6 @@ export default function Story() {
 					</Box>
 
 					<Stack spacing={1} sx={{ px: 2, py: 1.5, borderTop: "1px solid", borderColor: "divider" }}>
-						<Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
-							<Typography variant="caption" color="text.secondary" sx={{ minWidth: 48 }}>
-								Volume
-							</Typography>
-							<Slider size="small" min={0} max={1} step={0.05} value={volume} onChange={changeVolume} aria-label="Volume" valueLabelDisplay="auto" />
-						</Stack>
-						<Stack direction="row" spacing={1.5} sx={{ alignItems: "center" }}>
-							<Typography variant="caption" color="text.secondary" sx={{ minWidth: 48 }}>
-								Speed
-							</Typography>
-							<Slider size="small" min={SPEED_MIN} max={SPEED_MAX} step={SPEED_STEP} value={speed} onChange={changeSpeed} aria-label="Text speed" valueLabelDisplay="auto" />
-						</Stack>
 						<Button size="small" startIcon={<KeyboardIcon fontSize="small" />} onClick={showHint} sx={styles.hintLink}>
 							Keyboard shortcuts
 						</Button>
