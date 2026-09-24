@@ -20,7 +20,7 @@ import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
 import SettingsIcon from "@mui/icons-material/Settings";
 
-import { MOBILE_LANDSCAPE_QUERY, MobileStoryReader, StoryCorner, StoryLogPanel, StorySettingsCard, StorySettingsPanel, StorySkipIcon, useIsMobile, useStorySettings } from "archive-kit";
+import { MOBILE_LANDSCAPE_QUERY, MobileStoryReader, StoryCorner, StoryLogPanel, StorySettingsCard, StorySettingsPanel, StorySkipIcon, useAudioGate, useIsMobile, useStorySettings } from "archive-kit";
 import type { StoryChoice, StoryControl, StoryCornerProps, StoryCurrentLine, StoryLine } from "archive-kit";
 
 import LoadError from "../../components/LoadError";
@@ -966,6 +966,8 @@ export default function Story() {
 	});
 	const settings = useStorySettings(SETTINGS_KEY, seed);
 	const { auto, muted, setAuto, setMuted } = settings;
+	// Starts the music and effects, and holds the music the browser refused until the reader's next click in the player.
+	const { blocked, play: playAudio, resume: resumeAudio, forget: forgetAudio } = useAudioGate();
 	// The chapter list behind the scene menu, fetched the first time the menu is opened rather than on every scene.
 	const [menuChapters, setMenuChapters] = useState<StoryChapterSummary[] | null>(null);
 	// Which chapter is open in the scene menu, and the missions of every chapter opened so far.
@@ -1214,6 +1216,7 @@ export default function Story() {
 		const cue = stage.bgm;
 		const wanted = cue && hasStoryAudio(cue) ? storyAudioUrl(cue) : null;
 		if (wanted === null) {
+			forgetAudio(element);
 			element.pause();
 			element.removeAttribute("src");
 			return;
@@ -1221,9 +1224,13 @@ export default function Story() {
 		if (!element.src.endsWith(wanted.slice(wanted.lastIndexOf("/") + 1))) {
 			element.src = wanted;
 		}
-		if (!muted) {
-			// A browser may refuse to start audio before the reader has interacted, and advancing the scene is that interaction.
-			void element.play().catch(() => {});
+		if (muted) {
+			// Muted, the music waits paused, and a click in the player must not start it.
+			forgetAudio(element);
+			element.pause();
+		} else {
+			// A browser may refuse to start audio before the reader has clicked. The gate then holds the track for the next click in the player.
+			void playAudio(element, { keep: true });
 		}
 		// Without this the phone's notification shade falls back to the page's favicon and its URL, which says nothing useful.
 		if ("mediaSession" in navigator) {
@@ -1235,7 +1242,7 @@ export default function Story() {
 				artwork: art !== null && hasStoryBackground(art) ? [{ src: storyBackgroundUrl(art), type: "image/webp" }] : []
 			});
 		}
-	}, [stage.bgm, stage.background, muted, mission, sceneName]);
+	}, [stage.bgm, stage.background, muted, mission, sceneName, playAudio, forgetAudio]);
 
 	// The music's volume follows the BGM setting live, apart from the effect above, so moving the slider leaves playback alone.
 	useEffect(() => {
@@ -1262,16 +1269,9 @@ export default function Story() {
 			}
 			const effect = new Audio(storyAudioUrl(op.value));
 			effect.volume = EFFECT_VOLUME * sfxRef.current;
-			void effect.play().catch(() => {});
+			void playAudio(effect);
 		}
-	}, [beat, muted]);
-
-	// Muting pauses the music at once. The setting itself is saved by the kit.
-	useEffect(() => {
-		if (muted) {
-			musicRef.current?.pause();
-		}
-	}, [muted]);
+	}, [beat, muted, playAudio]);
 
 	const advance = useCallback(() => {
 		if (!beat) {
@@ -1330,6 +1330,22 @@ export default function Story() {
 	const retry = useCallback(() => setAttempt((count) => count + 1), []);
 	const toggleAuto = useCallback(() => setAuto(!auto), [auto, setAuto]);
 	const toggleMuted = useCallback(() => setMuted(!muted), [muted, setMuted]);
+	// Every click in the player lets blocked sound start. It notes first whether the sound was blocked, since the resume clears `blocked` before
+	// the Sound plate's own handler runs.
+	const blockedAtClick = useRef(false);
+	const interact = useCallback(() => {
+		blockedAtClick.current = blocked;
+		resumeAudio();
+	}, [blocked, resumeAudio]);
+	// While the browser holds the sound back, the Sound plate shows it off and a press only lets the sound start. The `m` key always toggles.
+	const pressSound = useCallback(() => {
+		if (blockedAtClick.current && !muted) {
+			return;
+		}
+		toggleMuted();
+	}, [muted, toggleMuted]);
+	// Off while muted, and while the browser holds the sound back.
+	const soundOff = muted || blocked;
 	// The stage advances on a click, so a click landing on a choice button must not also count as advancing the scene.
 	const stopBubbling = useCallback((event: MouseEvent) => event.stopPropagation(), []);
 	const toggleFullscreen = useCallback(() => {
@@ -1426,9 +1442,9 @@ export default function Story() {
 		{
 			key: "sound",
 			label: "Sound",
-			aria: muted ? "Turn sound on" : "Turn sound off",
-			icon: muted ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />,
-			onClick: toggleMuted,
+			aria: soundOff ? "Turn sound on" : "Turn sound off",
+			icon: soundOff ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />,
+			onClick: pressSound,
 			disabled: false,
 			gap: false
 		},
@@ -1487,10 +1503,10 @@ export default function Story() {
 			{ key: "reset", label: "Reset", ariaLabel: "Restart the scene", icon: <ReplayIcon />, onClick: restart },
 			{ key: "log", label: "Log", ariaLabel: "Backlog", icon: <HistoryIcon />, onClick: openBacklog, group: true },
 			{ key: "auto", label: "Auto", ariaLabel: auto ? "Stop autoplay" : "Autoplay", icon: auto ? <AutorenewIcon /> : <PlayArrowIcon />, onClick: toggleAuto, active: auto, spin: true },
-			{ key: "sound", label: "Sound", ariaLabel: muted ? "Turn sound on" : "Turn sound off", icon: muted ? <VolumeOffIcon /> : <VolumeUpIcon />, onClick: toggleMuted },
+			{ key: "sound", label: "Sound", ariaLabel: soundOff ? "Turn sound on" : "Turn sound off", icon: soundOff ? <VolumeOffIcon /> : <VolumeUpIcon />, onClick: pressSound },
 			{ key: "skip", label: "Skip", ariaLabel: "Skip to the end", icon: <StorySkipIcon />, onClick: toEnd, disabled: atEnd || choosing }
 		],
-		[openMenu, back, beatIndex, pageIndex, restart, openBacklog, auto, toggleAuto, muted, toggleMuted, toEnd, atEnd, choosing]
+		[openMenu, back, beatIndex, pageIndex, restart, openBacklog, auto, toggleAuto, soundOff, pressSound, toEnd, atEnd, choosing]
 	);
 	const phoneChoices = useMemo<StoryChoice[] | null>(
 		() => (pending ? pending.options.map((option) => ({ key: option.label, label: option.text, onPick: () => choose(timeline.pendingIndex, option.label) })) : null),
@@ -1544,6 +1560,7 @@ export default function Story() {
 						)
 					}
 					onAdvance={advance}
+					onInteract={interact}
 					logOpen={backlogOpen}
 					onCloseLog={closeBacklog}
 					logTitle="Backlog"
@@ -1552,7 +1569,7 @@ export default function Story() {
 					sx={READER_SX}
 				/>
 			) : (
-				<Box ref={playerRef} sx={[styles.player, cinema ? styles.playerCinema : {}]} onClick={advance} role="button" tabIndex={-1} aria-label="Advance the scene">
+				<Box ref={playerRef} sx={[styles.player, cinema ? styles.playerCinema : {}]} onClick={advance} onClickCapture={interact} role="button" tabIndex={-1} aria-label="Advance the scene">
 					<Box
 						// Keyed on the beat so a shake restarts when the reader reaches another one, rather than only on the first.
 						key={shake ? `shake-${beatIndex}` : "stage"}
