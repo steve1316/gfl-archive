@@ -1678,7 +1678,8 @@ export default function Story() {
 			{/* One long-lived element for the music. It sits outside the stage so redrawing a beat never restarts the track. */}
 			<Box component="audio" ref={musicRef} loop preload="none" aria-hidden sx={{ display: "none" }} />
 
-			<Drawer anchor="left" open={menuOpen} onClose={closeMenu}>
+			{/* Inside whatever is fullscreen, since the browser draws nothing outside it: `main` on desktop, the reader on a phone. */}
+			<Drawer anchor="left" open={menuOpen} onClose={closeMenu} container={() => (document.fullscreenElement as HTMLElement | null) ?? document.body}>
 				<Box sx={{ width: { xs: 300, sm: 380 }, display: "flex", flexDirection: "column", height: "100%" }} role="presentation">
 					<Stack direction="row" spacing={1} sx={{ px: 2, py: 1.5, alignItems: "baseline", borderBottom: "1px solid", borderColor: "divider" }}>
 						<Typography variant="subtitle1" sx={{ fontWeight: 700, flex: 1 }}>
