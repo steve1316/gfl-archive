@@ -302,9 +302,9 @@ export function nextAnimationValue(tabs: readonly AnimationTab[], current: strin
  * @param skelUrl URL of the binary `.skel`.
  * @param atlasUrl URL of the `.atlas`.
  * @param imageBase Directory the atlas's page images sit in, with a trailing slash.
- * @returns This runtime's `PIXI` and the parsed skeleton data.
+ * @returns This runtime's `PIXI`, the parsed skeleton data, and the atlas page textures this load created, which the caller owns.
  */
-export async function loadSkeletonData(skelUrl: string, atlasUrl: string, imageBase: string): Promise<{ PIXI: any; skeletonData: any }> {
+export async function loadSkeletonData(skelUrl: string, atlasUrl: string, imageBase: string): Promise<{ PIXI: any; skeletonData: any; pages: any[] }> {
 	await loadSpineRuntime();
 	// Re-point the global at this runtime's own PIXI before touching it: see `spinePixi`'s docstring for why.
 	claimPixiGlobal(spinePixi);
@@ -337,15 +337,18 @@ export async function loadSkeletonData(skelUrl: string, atlasUrl: string, imageB
 	// Each load gets its own base texture rather than one from `Texture.fromImage`, whose cache is keyed by URL. Two players showing the
 	// same doll, such as the formation stage and its settings preview, would otherwise share one, and the first to be destroyed would
 	// destroy it under the other, which then throws on every frame.
+	const pages: any[] = [];
 	const loadPage = (line: string, callback: (texture: unknown) => void) => {
 		const image = new Image();
 		image.crossOrigin = "anonymous";
 		image.src = `${imageBase}${line}`;
-		callback(new PIXI.BaseTexture(image));
+		const page = new PIXI.BaseTexture(image);
+		pages.push(page);
+		callback(page);
 	};
 	const atlas = new runtime.Atlas(atlasText, loadPage, () => {});
 	const skeletonData = new runtime.SkeletonJsonParser(new runtime.AtlasAttachmentParser(atlas)).readSkeletonData(binary.json);
-	return { PIXI, skeletonData };
+	return { PIXI, skeletonData, pages };
 }
 
 // //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -490,6 +493,19 @@ function fitSkeleton(spine: any, animation: SkeletonAnimation, padding: ArtPaddi
 }
 
 /**
+ * Destroy atlas page textures. A page whose image is still downloading is marked done first: PixiJS 4's own `onload` skips a page that is no
+ * longer loading, but `destroy` does not clear that flag, so a late image would otherwise read the destroyed texture and throw.
+ *
+ * @param pages The page textures `loadSkeletonData` created.
+ */
+function releasePages(pages: readonly any[]): void {
+	for (const page of pages) {
+		page.isLoading = false;
+		page.destroy();
+	}
+}
+
+/**
  * Build a Spine runtime for archive-kit's `AnimationStage` inside `host`. One PixiJS application serves every rig the stage shows, and a new
  * rig swaps the skeleton inside it. Frames come from the stage's own loop through `update` rather than PixiJS's ticker, so the stage can stop
  * them while the chibi is off screen.
@@ -512,6 +528,7 @@ export async function createSpineRuntime(host: HTMLElement): Promise<StageRuntim
 
 	let spine: any = null;
 	let skeletonData: any = null;
+	let pages: any[] = [];
 	let names: string[] = [];
 	let padding: ArtPadding = { left: 0, right: 0, top: 0, bottom: 0 };
 	let current: SkeletonAnimation | undefined;
@@ -538,14 +555,17 @@ export async function createSpineRuntime(host: HTMLElement): Promise<StageRuntim
 		async load(source, signal) {
 			const loaded = await loadSkeletonData(source.skelUrl, source.atlasUrl, source.imageBase);
 			if (signal.aborted) {
+				releasePages(loaded.pages);
 				return null;
 			}
 			// Re-claim after the await: Live2D's loader could have repointed the global meanwhile.
 			claimPixiGlobal(spinePixi);
 			if (spine) {
 				app.stage.removeChild(spine);
-				spine.destroy({ children: true, texture: true, baseTexture: true });
+				spine.destroy({ children: true, texture: true, baseTexture: false });
 			}
+			releasePages(pages);
+			pages = loaded.pages;
 			skeletonData = loaded.skeletonData;
 			spine = new PIXI.spine.Spine(skeletonData);
 			// The stage advances the skeleton through `update`, so pixi-spine's own clock stays off.
@@ -585,7 +605,9 @@ export async function createSpineRuntime(host: HTMLElement): Promise<StageRuntim
 			app.renderer.render(app.stage);
 		},
 		dispose() {
-			app.destroy(true, { children: true, texture: true, baseTexture: true });
+			app.destroy(true, { children: true, texture: true, baseTexture: false });
+			releasePages(pages);
+			pages = [];
 			spine = null;
 		}
 	};
