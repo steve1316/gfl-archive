@@ -1058,7 +1058,8 @@ export default function Story() {
 	const counts = useMemo(() => lineCounts(scene?.beats ?? []), [scene]);
 	const lineAt = beat ? (counts.at.get(beat) ?? 0) : 0;
 	// Floored at 1: a stage-only opening beat has no line yet, and still reads "Line 1", as the kit's corner expects.
-	const progress = useMemo(() => ({ at: ended ? counts.total : Math.max(1, lineAt), total: counts.total }), [counts, ended, lineAt]);
+	// A scene with no lines at all shows no count.
+	const progress = useMemo(() => (counts.total > 0 ? { at: ended ? counts.total : Math.max(1, lineAt), total: counts.total } : null), [counts, ended, lineAt]);
 	// A new object only when the cue changes, so the corner shows a title once per track rather than on every beat.
 	const cornerTrack = useMemo(() => {
 		const title = trackTitle(stage.bgm);
