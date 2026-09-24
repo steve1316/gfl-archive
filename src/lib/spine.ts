@@ -9,6 +9,8 @@
  * actually wants an animation, which keeps 1.5 MB of vendor code off every other route.
  */
 
+import type { StageRuntime } from "archive-kit";
+
 import { claimPixiGlobal, withLoadLock } from "./pixiRuntimeLock";
 
 // //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -576,6 +578,247 @@ export async function createSpinePlayer(options: SpinePlayerOptions): Promise<Sp
 		resize,
 		destroy: () => {
 			app.destroy(true, { children: true, texture: true, baseTexture: true });
+		}
+	};
+}
+
+// //////////////////////////////////////////////////////////////////////////////////////////////////
+// //////////////////////////////////////////////////////////////////////////////////////////////////
+// Stage runtime
+
+/** An animation from parsed skeleton data, narrowed to what framing uses. */
+interface SkeletonAnimation {
+	/** Length in seconds. */
+	duration: number;
+	/** Poses a skeleton at a time: `(skeleton, lastTime, time, loop, events)`. */
+	apply: (...args: unknown[]) => void;
+}
+
+/** How far the drawn artwork reaches past the visible bones on each side, measured once per skeleton from its setup pose. */
+interface ArtPadding {
+	/** Beyond the leftmost visible bone. */
+	left: number;
+	/** Beyond the rightmost visible bone. */
+	right: number;
+	/** Beyond the topmost visible bone. */
+	top: number;
+	/** Beyond the bottommost visible bone. */
+	bottom: number;
+}
+
+/** What archive-kit's stage loads on this site: one rig's files. */
+export interface SpineSource {
+	/** URL of the binary `.skel`. */
+	skelUrl: string;
+	/** URL of the `.atlas`. */
+	atlasUrl: string;
+	/** Directory the atlas's page images sit in, with a trailing slash. */
+	imageBase: string;
+}
+
+/**
+ * Widen a box to include every bone that is drawing something at the skeleton's current pose. Effect bones with nothing attached stay out, or
+ * a rig like Agent 416's Defender of Manhattan skin frames empty space and the chibi comes out tiny.
+ *
+ * @param box The box to widen, as [minX, maxX, minY, maxY].
+ * @param skeleton The posed skeleton.
+ * @returns Whether any visible bone was found.
+ */
+function widenToVisibleBones(box: number[], skeleton: any): boolean {
+	let found = false;
+	for (const slot of skeleton.slots) {
+		if (slot.attachment && slot.a > 0) {
+			box[0] = Math.min(box[0] as number, slot.bone.worldX);
+			box[1] = Math.max(box[1] as number, slot.bone.worldX);
+			box[2] = Math.min(box[2] as number, slot.bone.worldY);
+			box[3] = Math.max(box[3] as number, slot.bone.worldY);
+			found = true;
+		}
+	}
+	return found;
+}
+
+/**
+ * Widen a box to include every bone, the fallback for a pose that draws nothing at all.
+ *
+ * @param box The box to widen, as [minX, maxX, minY, maxY].
+ * @param skeleton The posed skeleton.
+ */
+function widenToAllBones(box: number[], skeleton: any): void {
+	for (const bone of skeleton.bones) {
+		box[0] = Math.min(box[0] as number, bone.worldX);
+		box[1] = Math.max(box[1] as number, bone.worldX);
+		box[2] = Math.min(box[2] as number, bone.worldY);
+		box[3] = Math.max(box[3] as number, bone.worldY);
+	}
+}
+
+/**
+ * Measure how far the drawn artwork extends past the visible bones, from the setup pose. Bones sit inside the silhouette, so fitting to bones
+ * alone crops hair, weapons and coat tails.
+ *
+ * @param app The PixiJS application the skeleton is on, rendered once to measure.
+ * @param spine The pixi-spine display object.
+ * @returns The padding on each side.
+ */
+function measurePadding(app: any, spine: any): ArtPadding {
+	const skeleton = spine.skeleton;
+	skeleton.setToSetupPose();
+	skeleton.updateWorldTransform();
+	const box = [Infinity, -Infinity, Infinity, -Infinity];
+	if (!widenToVisibleBones(box, skeleton)) {
+		widenToAllBones(box, skeleton);
+	}
+	const [minX, maxX, minY, maxY] = box as [number, number, number, number];
+	spine.x = 0;
+	spine.y = 0;
+	spine.scale.set(1);
+	app.renderer.render(app.stage);
+	const drawn = spine.getLocalBounds();
+	return {
+		left: Math.max(0, minX - drawn.x),
+		right: Math.max(0, drawn.x + drawn.width - maxX),
+		top: Math.max(0, minY - drawn.y),
+		bottom: Math.max(0, drawn.y + drawn.height - maxY)
+	};
+}
+
+/**
+ * Position and scale the skeleton so the whole animation stays in frame. The extent is sampled across the whole duration, since some
+ * animations walk the rig off its spot, so the framing is chosen once and does not drift while it plays. Never scales up, only down.
+ *
+ * @param spine The pixi-spine display object.
+ * @param animation The animation about to play.
+ * @param padding The artwork's reach past the bones.
+ * @param width Stage width in CSS pixels.
+ * @param height Stage height in CSS pixels.
+ */
+function fitSkeleton(spine: any, animation: SkeletonAnimation, padding: ArtPadding, width: number, height: number): void {
+	const skeleton = spine.skeleton;
+	const steps = 20;
+	const visible = [Infinity, -Infinity, Infinity, -Infinity];
+	const all = [Infinity, -Infinity, Infinity, -Infinity];
+	for (let step = 0; step <= steps; step++) {
+		const time = (animation.duration * step) / steps;
+		skeleton.setToSetupPose();
+		animation.apply(skeleton, time, time, false, []);
+		skeleton.updateWorldTransform();
+		widenToVisibleBones(visible, skeleton);
+		widenToAllBones(all, skeleton);
+	}
+	let [minX, maxX, minY, maxY] = (Number.isFinite(visible[0]) ? visible : all) as [number, number, number, number];
+	if (!Number.isFinite(minX) || !Number.isFinite(minY)) {
+		return;
+	}
+	// A little breathing room on top of the measured artwork so nothing grazes the edge.
+	const breathing = Math.min(width, height) * 0.04;
+	minX -= padding.left + breathing;
+	maxX += padding.right + breathing;
+	minY -= padding.top + breathing;
+	maxY += padding.bottom + breathing;
+	const fit = Math.min(width / (maxX - minX), height / (maxY - minY), 1);
+	spine.scale.set(fit);
+	// pixi-spine already flips the Y axis, so both axes centre the same way.
+	spine.x = width / 2 - ((minX + maxX) / 2) * fit;
+	spine.y = height / 2 - ((minY + maxY) / 2) * fit;
+}
+
+/**
+ * Build a Spine runtime for archive-kit's `AnimationStage` inside `host`. One PixiJS application serves every rig the stage shows, and a new
+ * rig swaps the skeleton inside it. Frames come from the stage's own loop through `update` rather than PixiJS's ticker, so the stage can stop
+ * them while the chibi is off screen.
+ *
+ * @param host The element to mount the canvas in.
+ * @returns The runtime.
+ */
+export async function createSpineRuntime(host: HTMLElement): Promise<StageRuntime<SpineSource>> {
+	await loadSpineRuntime();
+	claimPixiGlobal(spinePixi);
+	const PIXI = spinePixi as any;
+	let width = Math.max(1, host.clientWidth);
+	let height = Math.max(1, host.clientHeight);
+	// Clamped, because fill cost grows with the square of this and there is nothing to gain past 3x. Fixed for the stage's lifetime.
+	const resolution = Math.min(window.devicePixelRatio || 1, 3);
+	const app = new PIXI.Application(width, height, { backgroundColor: 0x000000, transparent: true, antialias: true, resolution, autoResize: true, autoStart: false });
+	host.appendChild(app.view);
+
+	let spine: any = null;
+	let skeletonData: any = null;
+	let names: string[] = [];
+	let padding: ArtPadding = { left: 0, right: 0, top: 0, bottom: 0 };
+	let current: SkeletonAnimation | undefined;
+
+	/**
+	 * Play an animation by name, looping, framed for its whole length.
+	 *
+	 * @param name The animation, or an alias `resolveAnimation` knows.
+	 */
+	const play = (name: string) => {
+		if (!spine || !skeletonData) {
+			return;
+		}
+		// This runtime's setAnimation takes an Animation object, not a name. A string fails at the first tick.
+		const animation = skeletonData.findAnimation(resolveAnimation(names, name) ?? name);
+		if (animation) {
+			current = animation;
+			fitSkeleton(spine, animation, padding, width, height);
+			spine.state.setAnimation(0, animation, true);
+		}
+	};
+
+	return {
+		async load(source, signal) {
+			const loaded = await loadSkeletonData(source.skelUrl, source.atlasUrl, source.imageBase);
+			if (signal.aborted) {
+				return null;
+			}
+			// Re-claim after the await: Live2D's loader could have repointed the global meanwhile.
+			claimPixiGlobal(spinePixi);
+			if (spine) {
+				app.stage.removeChild(spine);
+				spine.destroy({ children: true, texture: true, baseTexture: true });
+			}
+			skeletonData = loaded.skeletonData;
+			spine = new PIXI.spine.Spine(skeletonData);
+			// The stage advances the skeleton through `update`, so pixi-spine's own clock stays off.
+			spine.autoUpdate = false;
+			app.stage.addChild(spine);
+			padding = measurePadding(app, spine);
+			names = skeletonData.animations.map((animation: { name: string }) => animation.name);
+			current = undefined;
+			// Pose something at once, for a stage whose entries name nothing this skeleton defines.
+			const first = names[0];
+			if (first) {
+				play(first);
+			}
+			return null;
+		},
+		play,
+		resize(nextWidth, nextHeight) {
+			width = nextWidth;
+			height = nextHeight;
+			app.renderer.resize(width, height);
+			if (spine && current) {
+				fitSkeleton(spine, current, padding, width, height);
+			}
+		},
+		setView(scale, x, y) {
+			// A CSS translate then scale about the centre, which is what the stage's zoom describes.
+			app.stage.scale.set(scale);
+			app.stage.position.set((width / 2) * (1 - scale) + x, (height / 2) * (1 - scale) + y);
+		},
+		update(seconds) {
+			if (!spine) {
+				return;
+			}
+			// Vendored code reads the bare `PIXI` global while it builds meshes, so the global is claimed before every frame.
+			claimPixiGlobal(spinePixi);
+			spine.update(seconds);
+			app.renderer.render(app.stage);
+		},
+		dispose() {
+			app.destroy(true, { children: true, texture: true, baseTexture: true });
+			spine = null;
 		}
 	};
 }
