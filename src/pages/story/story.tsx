@@ -1273,7 +1273,11 @@ export default function Story() {
 			// Not remembering it only means the reader is reminded again, which is the safer way to fail.
 		}
 	}, []);
-	const openBacklog = useCallback(() => setBacklogOpen(true), []);
+	// Settings closes first, so the Backlog never opens under a card that would take its first click and Escape.
+	const openBacklog = useCallback(() => {
+		setSettingsOpen(false);
+		setBacklogOpen(true);
+	}, []);
 	const closeBacklog = useCallback(() => setBacklogOpen(false), []);
 	const openSettings = useCallback(() => setSettingsOpen(true), []);
 	const closeSettings = useCallback(() => setSettingsOpen(false), []);
