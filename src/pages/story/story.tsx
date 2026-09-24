@@ -1350,7 +1350,7 @@ export default function Story() {
 		blockedAtClick.current = blocked;
 		resumeAudio();
 	}, [blocked, resumeAudio]);
-	// While the browser holds the sound back, the Sound plate shows it off and a press only lets the sound start. The `m` key always toggles.
+	// While the browser holds the sound back, the Sound plate shows it off and a press only lets the sound start. The `m` key does the same.
 	const pressSound = useCallback(() => {
 		if (blockedAtClick.current && !muted) {
 			return;
@@ -1427,7 +1427,11 @@ export default function Story() {
 			},
 			a: toggleAuto,
 			l: openBacklog,
-			m: toggleMuted,
+			// The same as a press on the Sound plate: a click in the player first, then the plate's own handler.
+			m: () => {
+				interact();
+				pressSound();
+			},
 			"?": () => setHintOpen((open) => !open)
 		}
 	});
