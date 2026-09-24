@@ -43,7 +43,10 @@ const AUTO_HOLD_MS = 1400;
 /** Where the reader's place in each scene is remembered. */
 const PROGRESS_KEY = "storyProgress";
 
-/** Where the reader's choice to silence the story is remembered. */
+/**
+ * Where the reader's choice to silence the story was remembered before it joined the story settings. AK wrote the same key on this origin,
+ * so muting one archive muted the other. It is read once, to seed the mute setting, and never written again.
+ */
 const MUTED_KEY = "storyMuted";
 
 /** Where the old single volume setting was remembered. Read once, to seed both new volumes. */
@@ -876,6 +879,19 @@ function readOldVolume(): number | undefined {
 }
 
 /**
+ * Whether the reader had silenced the story under the old shared key, which seeds the mute setting until the reader saves settings.
+ *
+ * @returns True when the old key says muted, and false when it does not or storage is unavailable.
+ */
+function readOldMuted(): boolean {
+	try {
+		return window.localStorage.getItem(MUTED_KEY) === "1";
+	} catch {
+		return false;
+	}
+}
+
+/**
  * Read where the reader had got to in a scene.
  *
  * Entries written before the player understood branches are a bare number. They restore as a beat index with no choices, which
@@ -940,16 +956,16 @@ export default function Story() {
 	// The count is stored with the text it belongs to. Keeping them apart let a new page render with the previous page's count
 	// for one frame, which read as the line rolling backwards before it typed out.
 	const [typing, setTyping] = useState({ text: "", count: 0 });
-	const [auto, setAuto] = useState(false);
 	const [backlogOpen, setBacklogOpen] = useState(false);
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [settingsOpen, setSettingsOpen] = useState(false);
-	// The old single volume, read once, seeds both new volumes until the reader changes a setting.
+	// The old single volume and the old shared mute, read once, seed the settings for anything the reader has not saved yet.
 	const [seed] = useState(() => {
 		const volume = readOldVolume();
-		return volume === undefined ? undefined : { bgm: volume, sfx: volume };
+		return { ...(volume === undefined ? {} : { bgm: volume, sfx: volume }), muted: readOldMuted() };
 	});
 	const settings = useStorySettings(SETTINGS_KEY, seed);
+	const { auto, muted, setAuto, setMuted } = settings;
 	// The chapter list behind the scene menu, fetched the first time the menu is opened rather than on every scene.
 	const [menuChapters, setMenuChapters] = useState<StoryChapterSummary[] | null>(null);
 	// Which chapter is open in the scene menu, and the missions of every chapter opened so far.
@@ -979,13 +995,6 @@ export default function Story() {
 	const stacked = useMediaQuery(STACKED_QUERY);
 	// A phone reads through archive-kit's shared reader, so every archive reads the same on one. Desktop keeps the layout below.
 	const phone = useIsMobile();
-	const [muted, setMuted] = useState(() => {
-		try {
-			return window.localStorage.getItem(MUTED_KEY) === "1";
-		} catch {
-			return false;
-		}
-	});
 
 	const branches = useMemo(() => (scene ? branchRegions(scene.beats) : null), [scene]);
 	// Only the beats the reader's choices actually reach. It stops at the first choice still unanswered, since what follows depends on it.
@@ -1257,12 +1266,8 @@ export default function Story() {
 		}
 	}, [beat, muted]);
 
+	// Muting pauses the music at once. The setting itself is saved by the kit.
 	useEffect(() => {
-		try {
-			window.localStorage.setItem(MUTED_KEY, muted ? "1" : "0");
-		} catch {
-			// Storage being unavailable only costs the reader their preference, which is not worth failing the page over.
-		}
 		if (muted) {
 			musicRef.current?.pause();
 		}
@@ -1323,8 +1328,8 @@ export default function Story() {
 		[beats]
 	);
 	const retry = useCallback(() => setAttempt((count) => count + 1), []);
-	const toggleAuto = useCallback(() => setAuto((current) => !current), []);
-	const toggleMuted = useCallback(() => setMuted((current) => !current), []);
+	const toggleAuto = useCallback(() => setAuto(!auto), [auto, setAuto]);
+	const toggleMuted = useCallback(() => setMuted(!muted), [muted, setMuted]);
 	// The stage advances on a click, so a click landing on a choice button must not also count as advancing the scene.
 	const stopBubbling = useCallback((event: MouseEvent) => event.stopPropagation(), []);
 	const toggleFullscreen = useCallback(() => {
