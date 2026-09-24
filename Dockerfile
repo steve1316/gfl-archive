@@ -1,11 +1,16 @@
-# Build stage. The image only needs the lockfile to install, so dependencies stay cached across
-# source-only changes.
+# Build stage. Only the manifest, lockfile and workspace file are needed to install, so dependencies stay
+# cached across source-only changes.
 FROM node:22-alpine AS build
 
 WORKDIR /app
 RUN corepack enable
 
-COPY package.json pnpm-lock.yaml ./
+# `node:22-alpine` ships no git, and archive-kit installs from a git URL and builds itself at install time. Without this the install fails
+# with `sh: git: not found`.
+RUN apk add --no-cache git
+
+# The workspace file carries the `allowBuilds` entry, without which pnpm refuses to build archive-kit.
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 
 # pnpm refuses packages published more recently than `minimumReleaseAge`, which is a sensible default
 # against a freshly compromised release. It is disabled here only because the container resolves from

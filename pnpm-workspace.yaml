@@ -1,2 +1,7 @@
+# archive-kit installs from a git URL and builds itself through `prepare`, which pnpm 12 will not run unless the package is allowlisted here.
+# The key carries the resolved commit, so it has to be updated in the same commit that moves the pinned tag. Without it the install stops at
+# ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED, and the error prints the exact line to paste.
+allowBuilds:
+  archive-kit@https://codeload.github.com/steve1316/archive-kit/tar.gz/4dd6e0b878f1796a705283e58d093fa61c50454e: true
 minimumReleaseAgeExclude:
   - vite@8.3.0
