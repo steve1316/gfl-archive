@@ -3,13 +3,19 @@ import { memo, useCallback, useEffect, useState } from "react";
 import { Box, MenuItem, TextField, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
 
 import LevelSlider from "../../components/LevelSlider";
-import SpineAnimation from "../../components/SpineAnimation";
+import SpineStage from "../../components/SpineStage";
 import { spineImageBase, spineUrl } from "../../lib/assets";
 import { loadSpineRigs } from "../../lib/data";
 import { MAX_LINKS, MAX_SKILL_LEVEL, levelCap, maxModStage } from "../../lib/formation/pipeline";
 import type { AffectionLevel, DollSetup, EffectiveDoll, StatKey } from "../../lib/formation/pipeline";
 import type { FormationData } from "../../types/formation";
 import type { SpineRig } from "../../types/spine";
+
+/** The preview plays only the idle loop, with no caption and no stepping. A constant, so the stage never sees a new list. */
+const PREVIEW_ANIMATIONS: readonly string[] = ["wait"];
+
+/** The preview's box: the same 220px raised panel it has always had. */
+const PREVIEW_STAGE_SX = { height: 220, borderRadius: "8px", bgcolor: "raised" } as const;
 
 /** Stats shown in the preview, with their labels. */
 const PREVIEW_STATS: readonly [StatKey, string][] = [
@@ -103,17 +109,19 @@ export default memo(function DollSettings({ data, setup, result, onChange }: Dol
 	return (
 		<Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "240px 1fr" }, gap: 3 }}>
 			<Box>
-				<Box sx={{ height: 220, borderRadius: "8px", bgcolor: "raised", display: "flex", alignItems: "center", justifyContent: "center" }}>
-					{rig ? (
-						<SpineAnimation
-							skelUrl={spineUrl(setup.dollId, rig.skel, "skel")}
-							atlasUrl={spineUrl(setup.dollId, rig.atlas, "atlas")}
-							imageBase={spineImageBase(setup.dollId, rig.atlas)}
-							animation="wait"
-							maxSize={220}
-						/>
-					) : null}
-				</Box>
+				{rig ? (
+					<SpineStage
+						skelUrl={spineUrl(setup.dollId, rig.skel, "skel")}
+						atlasUrl={spineUrl(setup.dollId, rig.atlas, "atlas")}
+						imageBase={spineImageBase(setup.dollId, rig.atlas)}
+						anims={PREVIEW_ANIMATIONS}
+						label="Doll preview animation"
+						interactive={false}
+						sx={PREVIEW_STAGE_SX}
+					/>
+				) : (
+					<Box sx={PREVIEW_STAGE_SX} />
+				)}
 				<Box component="table" sx={{ width: "100%", mt: 1.5, borderCollapse: "collapse", "& td": { py: 0.4, borderBottom: 1, borderColor: "divider", fontSize: 13 } }}>
 					<tbody>
 						{result &&
