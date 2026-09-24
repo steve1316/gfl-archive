@@ -5,7 +5,7 @@
  */
 
 import { claimPixiGlobal } from "./pixiRuntimeLock";
-import { loadSkeletonData, loadSpineRuntime, resolveAnimation, spineRuntimePixi } from "./spine";
+import { loadSkeletonData, loadSpineRuntime, releasePages, resolveAnimation, spineRuntimePixi } from "./spine";
 
 /** Depth added to a chibi drawn on top, far below any real stage height. */
 const ON_TOP_DEPTH = 1e6;
@@ -15,33 +15,6 @@ const MIN_TURN_DISTANCE = 1;
 
 /** Message `addActor` rejects with when the stage was destroyed while a rig loaded, which callers can expect on unmount. */
 export const STAGE_DESTROYED_MESSAGE = "spine stage was destroyed";
-
-/**
- * Free the atlas page base textures one rig load created, found through the skeleton's attachments. Safe to call more than once.
- *
- * @param skeletonData The parsed skeleton from `loadSkeletonData`, whose pages this load owns.
- */
-function freeBaseTextures(skeletonData: any) {
-	const pages = new Set<any>();
-	for (const skin of skeletonData.skins) {
-		for (const attachment of Object.values<any>(skin.attachments)) {
-			if (attachment?.rendererObject?.page?.rendererObject) {
-				pages.add(attachment.rendererObject.page.rendererObject);
-			}
-		}
-	}
-	for (const baseTexture of pages) {
-		if (baseTexture._destroyed) {
-			continue;
-		}
-		// A page image still loading would call back into the destroyed texture, which reads its nulled source and throws.
-		if (baseTexture.source) {
-			baseTexture.source.onload = null;
-			baseTexture.source.onerror = null;
-		}
-		baseTexture.destroy();
-	}
-}
 
 /** Where one rig's files live. */
 export interface SpineRigUrls {
@@ -115,7 +88,7 @@ export async function createSpineStage(container: HTMLElement, width: number, he
 	app.ticker.add(sortByDepth, undefined, PIXI.UPDATE_PRIORITY.LOW + 1);
 
 	const addActor = async (rig: SpineRigUrls): Promise<StageActor> => {
-		const { PIXI: runtimePixi, skeletonData } = await loadSkeletonData(rig.skelUrl, rig.atlasUrl, rig.imageBase);
+		const { PIXI: runtimePixi, skeletonData, pages } = await loadSkeletonData(rig.skelUrl, rig.atlasUrl, rig.imageBase);
 		// Re-claim after the await: Live2D's loader or the stage's own teardown could have repointed the global while this was suspended.
 		claimPixiGlobal(runtimePixi);
 		const holder = new runtimePixi.Container();
@@ -132,7 +105,7 @@ export async function createSpineStage(container: HTMLElement, width: number, he
 			// The stage went away while this rig was loading. PixiJS 4's Application.destroy nulls app.stage and app.ticker but
 			// nothing here checks that, so building on it would throw. Drop what was just built and refuse instead.
 			holder.destroy({ children: true, texture: true });
-			freeBaseTextures(skeletonData);
+			releasePages(pages);
 			throw new Error(STAGE_DESTROYED_MESSAGE);
 		}
 		app.stage.addChild(holder);
@@ -240,7 +213,7 @@ export async function createSpineStage(container: HTMLElement, width: number, he
 				}
 				// Each load owns its textures (see `loadSkeletonData`), so they are freed with the actor, including pages no sprite referenced.
 				holder.destroy({ children: true, texture: true });
-				freeBaseTextures(skeletonData);
+				releasePages(pages);
 			}
 		};
 	};
