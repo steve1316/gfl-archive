@@ -20,7 +20,19 @@ import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
 import SettingsIcon from "@mui/icons-material/Settings";
 
-import { MOBILE_LANDSCAPE_QUERY, MobileStoryReader, StoryCorner, StoryLogPanel, StorySettingsCard, StorySettingsPanel, StorySkipIcon, useAudioGate, useIsMobile, useStorySettings } from "archive-kit";
+import {
+	MOBILE_LANDSCAPE_QUERY,
+	MobileStoryReader,
+	StoryCorner,
+	StoryLogPanel,
+	StorySettingsCard,
+	StorySettingsPanel,
+	StorySkipIcon,
+	useAudioGate,
+	useIsMobile,
+	useStoryKeys,
+	useStorySettings
+} from "archive-kit";
 import type { StoryChoice, StoryControl, StoryCornerProps, StoryCurrentLine, StoryLine } from "archive-kit";
 
 import LoadError from "../../components/LoadError";
@@ -959,6 +971,8 @@ export default function Story() {
 	const [backlogOpen, setBacklogOpen] = useState(false);
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [settingsOpen, setSettingsOpen] = useState(false);
+	// Whether the phone reader's Settings sheet covers the story, which the reader reports.
+	const [sheetOpen, setSheetOpen] = useState(false);
 	// The old single volume and the old shared mute, read once, seed the settings for anything the reader has not saved yet.
 	const [seed] = useState(() => {
 		const volume = readOldVolume();
@@ -997,6 +1011,8 @@ export default function Story() {
 	const stacked = useMediaQuery(STACKED_QUERY);
 	// A phone reads through archive-kit's shared reader, so every archive reads the same on one. Desktop keeps the layout below.
 	const phone = useIsMobile();
+	// A panel covers the story: the Backlog, the scenes menu, or Settings as the desktop card or the phone's sheet. Keys and AUTO wait behind it.
+	const paused = backlogOpen || menuOpen || settingsOpen || sheetOpen;
 
 	const branches = useMemo(() => (scene ? branchRegions(scene.beats) : null), [scene]);
 	// Only the beats the reader's choices actually reach. It stops at the first choice still unanswered, since what follows depends on it.
@@ -1377,49 +1393,40 @@ export default function Story() {
 	const closeSettings = useCallback(() => setSettingsOpen(false), []);
 	const toggleChapter = useCallback((id: number) => setOpenChapter((current) => (current === id ? null : id)), []);
 
-	// Autoplay waits for the page to finish typing, then holds before moving on.
+	// Autoplay waits for the page to finish typing, then holds before moving on. It waits behind any panel covering the story.
 	useEffect(() => {
-		if (!auto || !done || choosing) {
+		if (!auto || paused || !done || choosing) {
 			return;
 		}
 		const timer = window.setTimeout(() => advanceRef.current(), AUTO_HOLD_MS / (SPEED_BASE * settings.speed));
 		return () => window.clearTimeout(timer);
-	}, [auto, done, choosing, settings.speed, beatIndex, pageIndex]);
+	}, [auto, paused, done, choosing, settings.speed, beatIndex, pageIndex]);
 
-	useEffect(() => {
-		const onKey = (event: KeyboardEvent) => {
-			// A reader typing into the search box in the navbar is not driving the scene.
-			const target = event.target as HTMLElement | null;
-			if (target && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) {
-				return;
-			}
-			if (event.altKey || event.ctrlKey || event.metaKey) {
-				return;
-			}
-			const handlers: Record<string, () => void> = {
-				" ": () => advanceRef.current(),
-				Enter: () => advanceRef.current(),
-				ArrowRight: () => advanceRef.current(),
-				ArrowLeft: back,
-				Escape: () => {
-					if (document.fullscreenElement === null) {
-						setMenuOpen((open) => !open);
-					}
-				},
-				a: toggleAuto,
-				l: openBacklog,
-				m: toggleMuted,
-				"?": () => setHintOpen((open) => !open)
-			};
-			const run = handlers[event.key] ?? handlers[event.key.toLowerCase()];
-			if (run) {
-				event.preventDefault();
-				run();
-			}
-		};
-		window.addEventListener("keydown", onKey);
-		return () => window.removeEventListener("keydown", onKey);
-	}, [back, toggleAuto, openBacklog, toggleMuted]);
+	// Space, Enter and the right arrow read on and the left arrow steps back, each letting blocked sound start as a click does. The letters and
+	// Escape are this archive's own. A focused plate keeps Space and Enter, a field keeps every key, and nothing acts while a panel covers the
+	// story. The kit reads these through a ref, so the typewriter's ticks leave its listener alone.
+	useStoryKeys({
+		next: () => {
+			resumeAudio();
+			advanceRef.current();
+		},
+		back: () => {
+			resumeAudio();
+			back();
+		},
+		paused,
+		extra: {
+			Escape: () => {
+				if (document.fullscreenElement === null) {
+					setMenuOpen((open) => !open);
+				}
+			},
+			a: toggleAuto,
+			l: openBacklog,
+			m: toggleMuted,
+			"?": () => setHintOpen((open) => !open)
+		}
+	});
 
 	// The plate row, described once and drawn from the description.
 	const plates = [
@@ -1565,6 +1572,7 @@ export default function Story() {
 					onCloseLog={closeBacklog}
 					logTitle="Backlog"
 					settings={<StorySettingsPanel value={settings} sceneSize />}
+					onPanelChange={setSheetOpen}
 					sceneSize={settings.sceneSize}
 					sx={READER_SX}
 				/>
