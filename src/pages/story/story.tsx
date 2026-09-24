@@ -20,8 +20,8 @@ import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
 import SettingsIcon from "@mui/icons-material/Settings";
 
-import { MOBILE_LANDSCAPE_QUERY, MobileStoryReader, StorySettingsCard, StorySettingsPanel, StorySkipIcon, useIsMobile, useStorySettings } from "archive-kit";
-import type { StoryChoice, StoryControl, StoryCurrentLine, StoryLine } from "archive-kit";
+import { MOBILE_LANDSCAPE_QUERY, MobileStoryReader, StoryCorner, StorySettingsCard, StorySettingsPanel, StorySkipIcon, useIsMobile, useStorySettings } from "archive-kit";
+import type { StoryChoice, StoryControl, StoryCornerProps, StoryCurrentLine, StoryLine } from "archive-kit";
 
 import LoadError from "../../components/LoadError";
 import StoryPanelFrame, { AMBER } from "../../components/StoryPanelFrame";
@@ -30,6 +30,7 @@ import { storyAudioUrl, storyBackgroundUrl, storySpriteUrl, storyUiUrl } from ".
 import { loadStoryChapter, loadStoryIndex, loadStoryScene } from "../../lib/data";
 import { hasStoryAudio, hasStoryBackground, hasStorySprite, hasStoryUi, storySpriteStem } from "../../lib/processData";
 import { branchRegions, buildTimeline } from "../../lib/storyBranches";
+import { trackTitle } from "../../lib/storyMusic";
 import type { StoryBeat, StoryChapter, StoryChapterSummary, StoryMission, StoryPage, StoryScene } from "../../types/story";
 
 /** How long one character takes to type before the reader's speed and `SPEED_BASE` apply, in milliseconds. */
@@ -458,19 +459,6 @@ const styles = {
 		),
 		"&:hover": { bgcolor: "transparent" }
 	},
-	// Where the scene stands, quietly, out of the way of the art. It carries its own scrim, since plenty of scenes play on white.
-	hud: {
-		position: "absolute",
-		right: "1.3%",
-		bottom: "1.4%",
-		px: 1,
-		py: 0.25,
-		borderRadius: "3px",
-		bgcolor: "rgba(0, 0, 0, 0.45)",
-		fontSize: 12,
-		color: "rgba(255, 255, 255, 0.85)",
-		pointerEvents: "none"
-	},
 	// The keys, shown once and then only on request.
 	hint: {
 		display: "flex",
@@ -559,6 +547,14 @@ interface Stage {
 	night: boolean;
 	/** What the background is blanked to, leaving the cast against that colour until a later beat brings the picture back. */
 	blankedTo: "black" | "white" | null;
+}
+
+/** Where each beat falls among a scene's lines, from `lineCounts`. */
+interface LineCounts {
+	/** How many beats with text the scene holds, both sides of every branch included. */
+	total: number;
+	/** Each beat's line number: its place among the beats with text, or the count so far for a beat that only changes the stage. */
+	at: Map<StoryBeat, number>;
 }
 
 /**
@@ -650,6 +646,26 @@ function backdrop(background: string | null): string {
  */
 function pageText(page: StoryPage): string {
 	return page.spans.map((span) => span.text).join("");
+}
+
+/**
+ * Count a scene's lines in script order. A beat with text is one line however many pages it runs to, and a beat that only changes the stage
+ * takes the count so far. Both sides of every branch count, so the total holds from the start. Keyed by the beat itself, since the timeline
+ * plays the scene's own beat objects.
+ *
+ * @param beats The scene's beats, every branch included.
+ * @returns The total and each beat's line number.
+ */
+function lineCounts(beats: StoryBeat[]): LineCounts {
+	const at = new Map<StoryBeat, number>();
+	let seen = 0;
+	for (const beat of beats) {
+		if (beat.pages.length > 0) {
+			seen += 1;
+		}
+		at.set(beat, seen);
+	}
+	return { total: seen, at };
 }
 
 /**
@@ -977,6 +993,17 @@ export default function Story() {
 		const at = scripts.indexOf(sceneName);
 		return at === -1 ? null : (scripts[at + 1] ?? null);
 	}, [mission, sceneName]);
+	// Where each beat falls among the scene's lines, counted once per scene. The count jumps past a branch not taken, and the end shows the
+	// total, as AK's does.
+	const counts = useMemo(() => lineCounts(scene?.beats ?? []), [scene]);
+	const lineAt = beat ? (counts.at.get(beat) ?? 0) : 0;
+	const progress = useMemo(() => ({ at: ended ? counts.total : lineAt, total: counts.total }), [counts, ended, lineAt]);
+	// A new object only when the cue changes, so the corner shows a title once per track rather than on every beat.
+	const cornerTrack = useMemo(() => {
+		const title = trackTitle(stage.bgm);
+		return title === null ? null : { title };
+	}, [stage.bgm]);
+	const corner = useMemo<StoryCornerProps>(() => ({ progress, track: cornerTrack }), [progress, cornerTrack]);
 	const artwork = useMemo(() => (scene ? sceneImages(scene.beats, mission?.background) : []), [scene, mission]);
 	const scenery = useMemo(() => (mission?.background && hasStoryBackground(mission.background) ? storyBackgroundUrl(mission.background) : null), [mission]);
 	// A beat asking for black or white overrides the scene's own picture, which is how the scripts cut between places.
@@ -1453,6 +1480,7 @@ export default function Story() {
 							{stageLayers}
 						</Box>
 					}
+					corner={corner}
 					controls={phoneControls}
 					lines={readLines}
 					current={phoneCurrent}
@@ -1494,10 +1522,7 @@ export default function Story() {
 							</IconButton>
 						)}
 
-						<Box sx={styles.hud}>
-							{mission?.title ?? sceneName} &middot; Beat {beatIndex + 1} of {beats.length}
-							{stage.bgm ? ` \u00b7 ${stage.bgm}` : ""}
-						</Box>
+						<StoryCorner progress={corner.progress} track={corner.track} />
 					</Box>
 
 					<Box sx={[styles.stageControls, cinema ? styles.controlsCinema : {}, cinema ? { width: sideMargin } : {}]} onClick={stopBubbling}>
