@@ -37,6 +37,8 @@ export interface StoryTimeline {
 	pending: BranchRegion | null;
 	/** Index of `pending` into the scene's regions, so the answer can be recorded against it. -1 when nothing is pending. */
 	pendingIndex: number;
+	/** Per answered choice, keyed by its index into the regions, where the picked alternative starts among `beats`. */
+	starts: Record<number, number>;
 }
 
 /**
@@ -170,6 +172,7 @@ export function branchRegions(beats: StoryBeat[]): BranchMap {
  */
 export function buildTimeline(beats: StoryBeat[], map: BranchMap, choices: Record<number, string>): StoryTimeline {
 	const played: StoryBeat[] = [];
+	const starts: Record<number, number> = {};
 	for (let index = 0; index < beats.length; index++) {
 		const beat = beats[index];
 		if (!beat) {
@@ -182,11 +185,26 @@ export function buildTimeline(beats: StoryBeat[], map: BranchMap, choices: Recor
 		}
 		const chosen = choices[region];
 		if (chosen === undefined) {
-			return { beats: played, pending: map.regions[region] ?? null, pendingIndex: region };
+			return { beats: played, pending: map.regions[region] ?? null, pendingIndex: region, starts };
 		}
+		starts[region] ??= played.length;
 		if (map.labelOf[index] === chosen) {
 			played.push(beat);
 		}
 	}
-	return { beats: played, pending: null, pendingIndex: -1 };
+	return { beats: played, pending: null, pendingIndex: -1, starts };
+}
+
+/**
+ * The picks the reader is still past. A pick counts only while the reader is on or after the first beat it chose, so stepping back onto the
+ * choice forgets it, and reading on offers the choice again rather than replaying the old answer.
+ *
+ * @param choices The branch number picked for each region, keyed by its index into the regions.
+ * @param starts Where each picked alternative starts in the timeline, from `buildTimeline`.
+ * @param at Index into the timeline of the beat the reader is on.
+ * @returns The picks still reached, or `choices` itself when none is forgotten.
+ */
+export function reachedChoices(choices: Record<number, string>, starts: Record<number, number>, at: number): Record<number, string> {
+	const kept = Object.fromEntries(Object.entries(choices).filter(([region]) => (starts[Number(region)] ?? Infinity) <= at));
+	return Object.keys(kept).length === Object.keys(choices).length ? choices : kept;
 }

@@ -43,7 +43,7 @@ import ScrollToTop from "../../components/ScrollToTop";
 import { storyAudioUrl, storyBackgroundUrl, storySpriteUrl, storyUiUrl } from "../../lib/assets";
 import { loadStoryChapter, loadStoryIndex, loadStoryScene } from "../../lib/data";
 import { hasStoryAudio, hasStoryBackground, hasStorySprite, hasStoryUi, storySpriteStem } from "../../lib/processData";
-import { branchRegions, buildTimeline } from "../../lib/storyBranches";
+import { branchRegions, buildTimeline, reachedChoices } from "../../lib/storyBranches";
 import type { BranchMap } from "../../lib/storyBranches";
 import { trackTitle } from "../../lib/storyMusic";
 import type { StoryBeat, StoryChapter, StoryChapterSummary, StoryMission, StoryPage, StoryScene } from "../../types/story";
@@ -1004,7 +1004,7 @@ export default function Story() {
 
 	const branches = useMemo(() => (scene ? branchRegions(scene.beats) : null), [scene]);
 	// Only the beats the reader's choices actually reach. It stops at the first choice still unanswered, since what follows depends on it.
-	const timeline = useMemo(() => (scene && branches ? buildTimeline(scene.beats, branches, choices) : { beats: [], pending: null, pendingIndex: -1 }), [scene, branches, choices]);
+	const timeline = useMemo(() => (scene && branches ? buildTimeline(scene.beats, branches, choices) : { beats: [], pending: null, pendingIndex: -1, starts: {} }), [scene, branches, choices]);
 	const beats = timeline.beats;
 	const beat = beats[beatIndex] ?? null;
 	const page = beat?.pages[pageIndex] ?? null;
@@ -1144,8 +1144,10 @@ export default function Story() {
 				setScene(loadedScene);
 				setChapter(loadedChapter);
 				const saved = openAtStart ? { beat: 0, choices: {} } : readProgress(sceneName);
-				setChoices(saved.choices);
-				setBeatIndex(Math.max(0, saved.beat));
+				const at = Math.max(0, saved.beat);
+				// A place saved before a choice it holds a pick for, which Back used to leave, would replay that pick rather than offer the choice.
+				setChoices(reachedChoices(saved.choices, buildTimeline(loadedScene.beats, branchRegions(loadedScene.beats), saved.choices).starts, at));
+				setBeatIndex(at);
 				setPageIndex(0);
 				setTyping({ text: "", count: 0 });
 			},
@@ -1311,12 +1313,12 @@ export default function Story() {
 			setPageIndex((current) => current - 1);
 			return;
 		}
-		setBeatIndex((current) => {
-			const next = Math.max(0, current - 1);
-			setPageIndex(Math.max(0, (beats[next]?.pages.length ?? 1) - 1));
-			return next;
-		});
-	}, [pageIndex, beats]);
+		const next = Math.max(0, beatIndex - 1);
+		setBeatIndex(next);
+		setPageIndex(Math.max(0, (beats[next]?.pages.length ?? 1) - 1));
+		// Stepping back onto a choice forgets its pick, so reading on offers the choice again.
+		setChoices((current) => reachedChoices(current, timeline.starts, next));
+	}, [pageIndex, beatIndex, beats, timeline.starts]);
 
 	const restart = useCallback(() => {
 		setBeatIndex(0);
