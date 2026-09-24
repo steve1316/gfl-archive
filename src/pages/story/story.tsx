@@ -885,8 +885,11 @@ export default function Story() {
 	const [menuOpen, setMenuOpen] = useState(false);
 	const [settingsOpen, setSettingsOpen] = useState(false);
 	// The old single volume, read once, seeds both new volumes until the reader changes a setting.
-	const [oldVolume] = useState(readOldVolume);
-	const settings = useStorySettings(SETTINGS_KEY, oldVolume === undefined ? undefined : { bgm: oldVolume, sfx: oldVolume });
+	const [seed] = useState(() => {
+		const volume = readOldVolume();
+		return volume === undefined ? undefined : { bgm: volume, sfx: volume };
+	});
+	const settings = useStorySettings(SETTINGS_KEY, seed);
 	// The chapter list behind the scene menu, fetched the first time the menu is opened rather than on every scene.
 	const [menuChapters, setMenuChapters] = useState<StoryChapterSummary[] | null>(null);
 	// Which chapter is open in the scene menu, and the missions of every chapter opened so far.
