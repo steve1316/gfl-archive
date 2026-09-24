@@ -1453,7 +1453,6 @@ export default function Story() {
 							{stageLayers}
 						</Box>
 					}
-					caption={`${mission?.title ?? sceneName} \u00b7 Beat ${beatIndex + 1} of ${beats.length}${stage.bgm ? ` \u00b7 ${stage.bgm}` : ""}`}
 					controls={phoneControls}
 					lines={readLines}
 					current={phoneCurrent}
