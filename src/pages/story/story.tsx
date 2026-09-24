@@ -24,6 +24,7 @@ import {
 	MOBILE_LANDSCAPE_QUERY,
 	MobileStoryReader,
 	StoryCorner,
+	StoryEndCard,
 	StoryLogPanel,
 	StorySettingsCard,
 	StorySettingsPanel,
@@ -205,8 +206,8 @@ const PHONE_MAIN_SX = { [`@media ${MOBILE_LANDSCAPE_QUERY}`]: { height: "100dvh"
 /** The shared reader in this archive's colours: the cyan the story player already speaks in, and its amber for a picked choice. */
 const READER_SX = (theme: Theme) => ({ "--reader-accent": theme.palette.secondary.main, "--reader-pick": AMBER });
 
-/** The end of a scene on a phone: a note and the ways on, under the last line. */
-const PHONE_END_SX = { alignItems: "center", flexWrap: "wrap", rowGap: 0.5, mt: 1 } as const;
+/** The end card's way back: every chapter, since a scene has no list of its own to return to. */
+const BACK_TO_CHAPTERS = { label: "Back to all chapters", to: "/story" };
 
 /** Carried on every link into a scene from inside the player, telling it to open at the start rather than resume. */
 const OPEN_AT_START = { restart: true };
@@ -270,7 +271,9 @@ const styles = {
 		cursor: "pointer",
 		userSelect: "none",
 		// Queried by the characters, so a comms window can be sized against the stage rather than against its own slot.
-		containerType: "size"
+		containerType: "size",
+		// Keeps the end's black inside the stage, so the plates and the dialogue, which sit outside it, stay above it and usable.
+		isolation: "isolate"
 	},
 	// The scene's picture, on its own layer so a beat that blanks the background fades it out and leaves the cast against the bare stage.
 	scene: { position: "absolute", inset: 0, transition: `opacity ${WASH_MS}ms ease` },
@@ -351,8 +354,6 @@ const styles = {
 	},
 	slabText: { whiteSpace: "pre-wrap", lineHeight: 1.6, fontSize: 14, flex: 1, minHeight: 0, overflowY: "auto" },
 	transcriptCinema: { display: "flex", flexDirection: "column", justifyContent: "flex-end", flex: "0 100 auto", minHeight: 0, overflow: "hidden", px: 0 },
-	// The slab has no mark to sit beside, so the end row simply follows the text instead of being placed against the frame.
-	endingCinema: { flexWrap: "wrap", alignItems: "center", rowGap: 0.5, mt: 1 },
 	// Everything that sits along the bottom of the scene, stacked so a taller dialogue box pushes the hint up instead of meeting it.
 	bottomStack: {
 		position: "absolute",
@@ -464,6 +465,8 @@ const styles = {
 	// is what keeps it readable, since plenty of scenes play on snow or on a white wash.
 	sceneFullscreen: {
 		position: "absolute",
+		// Over the end's black, which sits at 3 inside the stage, so it still works once the scene is over.
+		zIndex: 4,
 		top: "2.5%",
 		left: "2%",
 		width: 40,
@@ -504,22 +507,6 @@ const styles = {
 	link: { textDecoration: "none", color: "text.primary" },
 	menuHead: { px: 2, pt: 1.5, pb: 0.5, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "secondary.main", fontWeight: 700 },
 	choiceButton: { justifyContent: "flex-start", textAlign: "left", textTransform: "none", lineHeight: 1.5 },
-	// Sits under the last line, inside the same panel, so the end reads as part of the scene rather than a new box appearing.
-	// Laid over the panel's lower area rather than added to it, so arriving at the end never changes the box's height.
-	//
-	// Centred on the same line as the panel's own mark, which sits 79.5% down the frame, and stopped short of the hazard stripes
-	// that begin 80.6% across. Both figures are shares of the frame, so the two rows stay level at any panel size.
-	ending: {
-		position: "absolute",
-		left: { xs: 12, sm: 20 },
-		right: "21%",
-		top: "79.5%",
-		transform: "translateY(-50%)",
-		alignItems: "center",
-		flexWrap: "wrap",
-		rowGap: 0.5
-	},
-	endingLabel: { fontSize: 13, fontWeight: 700, color: "text.secondary", letterSpacing: "0.04em" },
 	// Holds its line whether or not the beat names anyone: the panel art cuts a notch across its top right, and narration that
 	// started at the very top of the box ran straight into it.
 	// The stacked panel is tall enough that a 0.5 gap read as the body being part of the speaker's own line.
@@ -1077,6 +1064,14 @@ export default function Story() {
 		return title === null ? null : { title };
 	}, [stage.bgm]);
 	const corner = useMemo<StoryCornerProps>(() => ({ progress, track: cornerTrack }), [progress, cornerTrack]);
+	// The end card's title and way on. Next opens the mission's next scene at its start, as the scenes menu does.
+	const ending = useMemo(
+		() => ({
+			title: mission ? `${sceneName} ${mission.title}` : sceneName,
+			next: nextScene ? { label: "Next scene", to: `/story/${chapterId}/${encodeURIComponent(nextScene)}`, state: OPEN_AT_START } : undefined
+		}),
+		[mission, sceneName, nextScene, chapterId]
+	);
 	const artwork = useMemo(() => (scene ? sceneImages(scene.beats, mission?.background) : []), [scene, mission]);
 	const scenery = useMemo(() => (mission?.background && hasStoryBackground(mission.background) ? storyBackgroundUrl(mission.background) : null), [mission]);
 	// A beat asking for black or white overrides the scene's own picture, which is how the scripts cut between places.
@@ -1521,22 +1516,6 @@ export default function Story() {
 	);
 	// Only the phone shows it, so the desktop does not type each line twice.
 	const phoneCurrent: StoryCurrentLine | null = phone && !pending && page ? { speaker: beat?.speaker ?? null, text: renderTyped(page, typed), typing: !done } : null;
-	// The note at the end of the scene and the ways on, which each layout sets in its own row.
-	const endNote = ended && (
-		<>
-			<Box component="span" sx={styles.endingLabel}>
-				Scene end.
-			</Box>
-			{nextScene && (
-				<Button size="small" color="secondary" component={RouterLink} to={`/story/${chapterId}/${encodeURIComponent(nextScene)}`} state={OPEN_AT_START}>
-					Next scene
-				</Button>
-			)}
-			<Button size="small" onClick={restart}>
-				Read again
-			</Button>
-		</>
-	);
 
 	return (
 		<Box component="main" ref={frameRef} sx={phone && scene ? [styles.main, PHONE_MAIN_SX] : styles.main}>
@@ -1559,13 +1538,7 @@ export default function Story() {
 					lines={readLines}
 					current={phoneCurrent}
 					choices={phoneChoices}
-					end={
-						endNote && (
-							<Stack direction="row" spacing={1.5} sx={PHONE_END_SX}>
-								{endNote}
-							</Stack>
-						)
-					}
+					end={ended ? <StoryEndCard variant="inline" title={ending.title} next={ending.next} back={BACK_TO_CHAPTERS} onRestart={restart} color="secondary" /> : null}
 					onAdvance={advance}
 					onInteract={interact}
 					logOpen={backlogOpen}
@@ -1599,6 +1572,7 @@ export default function Story() {
 						)}
 
 						<StoryCorner progress={corner.progress} track={corner.track} />
+						{ended && <StoryEndCard variant="stage" title={ending.title} next={ending.next} back={BACK_TO_CHAPTERS} onRestart={restart} color="secondary" />}
 					</Box>
 
 					<Box sx={[styles.stageControls, cinema ? styles.controlsCinema : {}, cinema ? { width: sideMargin } : {}]} onClick={stopBubbling}>
@@ -1692,11 +1666,6 @@ export default function Story() {
 										)}
 									</Typography>
 								</Box>
-								{endNote && (
-									<Stack direction="row" spacing={1.5} sx={cinema ? styles.endingCinema : styles.ending} onClick={stopBubbling}>
-										{endNote}
-									</Stack>
-								)}
 							</Box>
 						)}
 					</Box>
