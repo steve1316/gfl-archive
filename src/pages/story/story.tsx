@@ -1061,7 +1061,8 @@ export default function Story() {
 
 	// Type the current page out one character at a time. Restarts whenever the page changes.
 	useEffect(() => {
-		setTyping({ text: full, count: 0 });
+		// A new speed carries on from where the line had got to. Only a new page starts again from nothing.
+		setTyping((current) => (current.text === full ? current : { text: full, count: 0 }));
 		if (full === "") {
 			return;
 		}
