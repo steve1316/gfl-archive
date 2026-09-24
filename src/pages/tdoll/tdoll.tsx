@@ -20,7 +20,6 @@ import type { SxProps, Theme } from "@mui/material";
 
 import { skinFormKey } from "../../lib/assets";
 import { loadDollDetails, loadSpineRigs } from "../../lib/data";
-import { animationTabs, nextAnimationValue } from "../../lib/spine";
 import { useSkinLive2dForms } from "../../lib/useLive2dMotions";
 import type { SpineDollEntry } from "../../types/spine";
 import type { TDoll as TDollData, TDollForm, TDollWithDetails } from "../../types/tdoll";
@@ -281,8 +280,6 @@ function TDollContent({ doll, spine }: TDollContentProps) {
 
 	// Set initial states for animations.
 	const [animationMode, setAnimationMode] = useState(0); // 0 for Normal animations, 1 for Dorm animations.
-	const [animationTabSelected, setAnimationTabSelected] = useState("wait");
-	const [animationDormTabSelected, setAnimationDormTabSelected] = useState("wait");
 	// Which animation source the Animations card shows. Separate from animationMode above, which keeps its
 	// existing 0/1 meaning for picking the Spine rig even while Live2D is on screen.
 	const [chibiMode, setChibiMode] = useState<ChibiMode>("battle");
@@ -316,17 +313,6 @@ function TDollContent({ doll, spine }: TDollContentProps) {
 	// either way. A skin with no rig published falls back to the doll's own rigs rather than showing nothing.
 	const rigs = selectedSkinRigs ?? modRigs ?? spineEntry;
 	const spineRig = animationMode === 0 ? rigs?.combat : (rigs?.dorm ?? rigs?.combat);
-	const requestedAnimation = animationMode === 0 ? animationTabSelected : animationDormTabSelected;
-
-	// One tab per animation the skeleton defines. A fixed list, whether from the old GIF filenames or
-	// the hand-maintained `has*Animation` flags, both offered tabs that did nothing when clicked and
-	// hid animations the skeleton did have, such as the rifles' `snipe` pose.
-	// Memoised on the rig's animation list so ChibiPanel, which is memoised, is not handed a new array every render.
-	const spineTabs = useMemo(() => animationTabs(spineRig?.anims ?? []), [spineRig]);
-
-	// Tabs default to "wait", which most but not all skeletons define. Falling back to the first tab
-	// keeps the selection valid instead of leaving MUI with a value none of its children carry.
-	const spineAnimationName = spineTabs.some((tab) => tab.value === requestedAnimation) ? requestedAnimation : (spineTabs[0]?.value ?? requestedAnimation);
 
 	// The skin's resolved assets, from the manifest-derived form keyed `skin-<skinKey>`. Undefined when no skin is on screen or it has no art.
 	const skinAssets = skinKey === null ? undefined : tdoll.forms[skinFormKey(skinKey)];
@@ -391,12 +377,6 @@ function TDollContent({ doll, spine }: TDollContentProps) {
 	// Every handler below is wrapped in useCallback. The panels they are passed to are memoised, and a handler
 	// recreated on each render would make every panel re-render on every change, whether or not it changed.
 
-	// Helper function to reset selected animation tab back to the default tab.
-	const helperResetAnimationTabs = useCallback(() => {
-		setAnimationTabSelected("wait");
-		setAnimationDormTabSelected("wait");
-	}, []);
-
 	///////////////////////////////////////////////////////////////////////////////////////////
 	// Functions for switching between modes, like Mod or Dorm.
 	///////////////////////////////////////////////////////////////////////////////////////////
@@ -424,30 +404,16 @@ function TDollContent({ doll, spine }: TDollContentProps) {
 
 		// Reset back to Skill 1 whenever the Mod toggle flips, in either direction.
 		setSelectedSkill(0);
-		helperResetAnimationTabs();
-	}, [tdoll, mode, hasMod, helperResetAnimationTabs]);
+	}, [tdoll, mode, hasMod]);
 
-	// Switch which animation source the Animations card shows. Battle and Dorm keep driving animationMode's
-	// existing 0/1 meaning for the Spine rig and reset the tab selection exactly as the old toggle did, but only
-	// when the target rig actually differs from the one already selected. Without that check, clicking back to the
-	// rig already showing (Live2D -> the same Battle or Dorm the reader started from) would reset the tab too, even
-	// though the rig itself never changed. Live2D only changes chibiMode and leaves the Spine rig and its tab
-	// selection untouched, so it plays on unchanged after a reader steps away to Live2D and back.
-	const selectChibiMode = useCallback(
-		(newMode: ChibiMode) => {
-			if (newMode === "live2d") {
-				setChibiMode("live2d");
-				return;
-			}
-			const nextAnimationMode = newMode === "dorm" ? 1 : 0;
-			if (nextAnimationMode !== animationMode) {
-				helperResetAnimationTabs();
-				setAnimationMode(nextAnimationMode);
-			}
-			setChibiMode(newMode);
-		},
-		[animationMode, helperResetAnimationTabs]
-	);
+	// Switch which animation source the Animations card shows. Battle and Dorm keep driving animationMode's existing 0/1 meaning for the Spine
+	// rig. Live2D leaves the rig alone, so stepping back from Live2D returns to the same Battle or Dorm rig, which restarts at its first animation.
+	const selectChibiMode = useCallback((newMode: ChibiMode) => {
+		if (newMode !== "live2d") {
+			setAnimationMode(newMode === "dorm" ? 1 : 0);
+		}
+		setChibiMode(newMode);
+	}, []);
 
 	///////////////////////////////////////////////////////////////////////////////////////////
 	// Functions for Card images
@@ -461,8 +427,7 @@ function TDollContent({ doll, spine }: TDollContentProps) {
 	const switchToBaseArt = useCallback(() => {
 		setSkinKey(null);
 		setSwitchImage(false); // Prevents duplicate click bug on the Card component.
-		helperResetAnimationTabs();
-	}, [helperResetAnimationTabs]);
+	}, []);
 
 	// Show the skin whose pill was clicked, or go back to the base art when the Base pill's false arrives.
 	const switchSkinSelected = useCallback(
@@ -474,43 +439,9 @@ function TDollContent({ doll, spine }: TDollContentProps) {
 
 			setSkinKey(newValue);
 			setSwitchImage(false); // Prevents duplicate click bug on the Card component.
-
-			// Reset animation tab selected.
-			helperResetAnimationTabs();
 		},
-		[switchToBaseArt, helperResetAnimationTabs]
+		[switchToBaseArt]
 	);
-
-	///////////////////////////////////////////////////////////////////////////////////////////
-	// Functions for Tab functionality
-	///////////////////////////////////////////////////////////////////////////////////////////
-
-	// Record which tab is selected for the current animation mode. This alone drives spineAnimationName
-	// above, since every doll resolves a Spine rig and the GIF-era per-animation lookups it used to also
-	// perform here never ran for anyone.
-	const switchAnimations = useCallback(
-		(newValue: string) => {
-			if (animationMode === 0) {
-				setAnimationTabSelected(newValue);
-			} else {
-				setAnimationDormTabSelected(newValue);
-			}
-		},
-		[animationMode]
-	);
-
-	///////////////////////////////////////////////////////////////////////////////////////////
-	// Functions for Tileset functionality
-	///////////////////////////////////////////////////////////////////////////////////////////
-
-	// Switch the animation playing to the next one when the chibi is clicked. Walks the same spineTabs
-	// list the pills render, so clicking the stage and clicking a pill always agree on what comes next.
-	const playerSwitchAnimations = useCallback(() => {
-		const next = nextAnimationValue(spineTabs, spineAnimationName);
-		if (next) {
-			switchAnimations(next);
-		}
-	}, [spineTabs, spineAnimationName, switchAnimations]);
 
 	return (
 		<main>
@@ -606,12 +537,8 @@ function TDollContent({ doll, spine }: TDollContentProps) {
 										<ChibiPanel
 											mode={chibiMode}
 											onSelectMode={selectChibiMode}
-											spineAnimationName={spineAnimationName}
-											spineTabs={spineTabs}
-											onSwitchAnimations={switchAnimations}
 											spineRig={spineRig}
 											normalId={tdoll.normal.id}
-											onPlayerSwitchAnimations={playerSwitchAnimations}
 											live2dForm={live2dForm}
 											live2dSkinKey={live2dSkinKey}
 											live2dVariants={live2dVariants}
