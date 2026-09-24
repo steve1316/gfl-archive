@@ -1389,6 +1389,13 @@ export default function Story() {
 	const closeSettings = useCallback(() => setSettingsOpen(false), []);
 	const toggleChapter = useCallback((id: number) => setOpenChapter((current) => (current === id ? null : id)), []);
 
+	// The desktop Settings card goes with the desktop layout. Left open when the phone's takes over, it would pause the story with nothing on screen.
+	useEffect(() => {
+		if (phone) {
+			setSettingsOpen(false);
+		}
+	}, [phone]);
+
 	// Autoplay waits for the page to finish typing, then holds before moving on. It waits behind any panel covering the story.
 	useEffect(() => {
 		if (!auto || paused || !done || choosing) {
