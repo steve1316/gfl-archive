@@ -962,6 +962,8 @@ export default function Story() {
 	const [attempt, setAttempt] = useState(0);
 	const [beatIndex, setBeatIndex] = useState(0);
 	const [pageIndex, setPageIndex] = useState(0);
+	// The reader has read on past the last line, so the scene's end shows. It is a step of its own, so the last line is read before the end covers it.
+	const [finished, setFinished] = useState(false);
 	// The branch number taken at each of the scene's choices, keyed by that choice's index into the branch map.
 	const [choices, setChoices] = useState<Record<number, string>>({});
 	// The count is stored with the text it belongs to. Keeping them apart let a new page render with the previous page's count
@@ -1058,8 +1060,8 @@ export default function Story() {
 	// The mission names its own scene art. A beat's own `background` op is a scene-local index the game resolves in code the data does
 	// not ship, so it cannot be mapped to a picture - it still drives the fallback wash, which at least changes when the scene does.
 	// Reaching the last line is otherwise indistinguishable from the player having stuck, so the end says so, and offers the
-	// next scene of the mission when there is one.
-	const ended = atEnd && done;
+	// next scene of the mission when there is one. It comes one step after the last line, as AK's does.
+	const ended = finished && atEnd;
 	const nextScene = useMemo(() => {
 		const scripts = mission?.scripts ?? [];
 		const at = scripts.indexOf(sceneName);
@@ -1107,8 +1109,8 @@ export default function Story() {
 	// The last few spoken lines before the one on screen, for the stacked layout to show above it. Picks and track starts stay in the Logs.
 	const transcript = useMemo(() => {
 		const spoken = readLines.filter((line) => line.kind === undefined);
-		return (page === null ? spoken : spoken.slice(0, -1)).slice(-TRANSCRIPT_LINES);
-	}, [readLines, page]);
+		return (page === null || ended ? spoken : spoken.slice(0, -1)).slice(-TRANSCRIPT_LINES);
+	}, [readLines, page, ended]);
 
 	useEffect(() => {
 		document.title = mission ? `${mission.title} - Story` : "Story";
@@ -1161,6 +1163,7 @@ export default function Story() {
 				setBeatIndex(at);
 				setPageIndex(0);
 				setTyping({ text: "", count: 0 });
+				setFinished(false);
 			},
 			() => active && setFailed(true)
 		);
@@ -1315,11 +1318,21 @@ export default function Story() {
 		if (beatIndex + 1 < beats.length) {
 			setBeatIndex((current) => current + 1);
 			setPageIndex(0);
+			return;
 		}
-	}, [beats, beat, done, full, pageIndex, beatIndex]);
+		// Reading on from the last line ends the scene. A choice still waiting never gets here, since its menu is showing.
+		if (atEnd) {
+			setFinished(true);
+		}
+	}, [beats, beat, done, full, pageIndex, beatIndex, atEnd]);
 	advanceRef.current = advance;
 
 	const back = useCallback(() => {
+		// From the end, Back returns to the last line.
+		if (ended) {
+			setFinished(false);
+			return;
+		}
 		if (pageIndex > 0) {
 			setPageIndex((current) => current - 1);
 			return;
@@ -1329,20 +1342,23 @@ export default function Story() {
 		setPageIndex(Math.max(0, (beats[next]?.pages.length ?? 1) - 1));
 		// Stepping back onto a choice forgets its pick, so reading on offers the choice again.
 		setChoices((current) => reachedChoices(current, timeline.starts, next));
-	}, [pageIndex, beatIndex, beats, timeline.starts]);
+	}, [ended, pageIndex, beatIndex, beats, timeline.starts]);
 
 	const restart = useCallback(() => {
 		setBeatIndex(0);
 		setPageIndex(0);
 		setTyping({ text: "", count: 0 });
 		setChoices({});
+		setFinished(false);
 	}, []);
 	const toEnd = useCallback(() => {
 		if (beats.length > 0) {
 			setBeatIndex(beats.length - 1);
 			setPageIndex(Math.max(0, (beats[beats.length - 1]?.pages.length ?? 1) - 1));
+			// With no choice in the way, Skip lands on the end itself rather than the last line.
+			setFinished(timeline.pending === null);
 		}
-	}, [beats]);
+	}, [beats, timeline.pending]);
 	const choose = useCallback(
 		(region: number, label: string) => {
 			setChoices((current) => ({ ...current, [region]: label }));
@@ -1412,12 +1428,12 @@ export default function Story() {
 
 	// Autoplay waits for the page to finish typing, then holds before moving on. It waits behind any panel covering the story.
 	useEffect(() => {
-		if (!auto || paused || !done || choosing) {
+		if (!auto || paused || !done || choosing || ended) {
 			return;
 		}
 		const timer = window.setTimeout(() => advanceRef.current(), AUTO_HOLD_MS / (SPEED_BASE * settings.speed));
 		return () => window.clearTimeout(timer);
-	}, [auto, paused, done, choosing, settings.speed, beatIndex, pageIndex]);
+	}, [auto, paused, done, choosing, ended, settings.speed, beatIndex, pageIndex]);
 
 	// Space, Enter and the right arrow read on and the left arrow steps back, each letting blocked sound start as a click does. The letters and
 	// Escape are this archive's own. A focused plate keeps Space and Enter, a field keeps every key, and nothing acts while a panel covers the
@@ -1476,7 +1492,7 @@ export default function Story() {
 			disabled: false,
 			gap: false
 		},
-		{ key: "skip", label: "Skip", aria: "Skip to the end", icon: <StorySkipIcon fontSize="small" />, onClick: toEnd, disabled: atEnd || choosing, gap: false },
+		{ key: "skip", label: "Skip", aria: "Skip to the end", icon: <StorySkipIcon fontSize="small" />, onClick: toEnd, disabled: ended || choosing, gap: false },
 		// Stacked, it is inlaid in the scene's own corner instead: a ninth plate wrapped onto a row of its own down there.
 		...(canFullscreen && !stacked
 			? [
@@ -1532,16 +1548,16 @@ export default function Story() {
 			{ key: "log", label: "Log", ariaLabel: "Backlog", icon: <HistoryIcon />, onClick: openBacklog, group: true },
 			{ key: "auto", label: "Auto", ariaLabel: auto ? "Stop autoplay" : "Autoplay", icon: auto ? <AutorenewIcon /> : <PlayArrowIcon />, onClick: toggleAuto, active: auto, spin: true },
 			{ key: "sound", label: "Sound", ariaLabel: soundOff ? "Turn sound on" : "Turn sound off", icon: soundOff ? <VolumeOffIcon /> : <VolumeUpIcon />, onClick: pressSound },
-			{ key: "skip", label: "Skip", ariaLabel: "Skip to the end", icon: <StorySkipIcon />, onClick: toEnd, disabled: atEnd || choosing }
+			{ key: "skip", label: "Skip", ariaLabel: "Skip to the end", icon: <StorySkipIcon />, onClick: toEnd, disabled: ended || choosing }
 		],
-		[openMenu, back, beatIndex, pageIndex, restart, openBacklog, auto, toggleAuto, soundOff, pressSound, toEnd, atEnd, choosing]
+		[openMenu, back, beatIndex, pageIndex, restart, openBacklog, auto, toggleAuto, soundOff, pressSound, toEnd, ended, choosing]
 	);
 	const phoneChoices = useMemo<StoryChoice[] | null>(
 		() => (pending ? pending.options.map((option) => ({ key: option.label, label: option.text, onPick: () => choose(timeline.pendingIndex, option.label) })) : null),
 		[pending, choose, timeline.pendingIndex]
 	);
 	// Only the phone shows it, so the desktop does not type each line twice.
-	const phoneCurrent: StoryCurrentLine | null = phone && !pending && page ? { speaker: beat?.speaker ?? null, text: renderTyped(page, typed), typing: !done } : null;
+	const phoneCurrent: StoryCurrentLine | null = phone && !pending && !ended && page ? { speaker: beat?.speaker ?? null, text: renderTyped(page, typed), typing: !done } : null;
 
 	return (
 		<Box component="main" ref={frameRef} sx={phone && scene ? [styles.main, PHONE_MAIN_SX] : styles.main}>
@@ -1676,7 +1692,7 @@ export default function Story() {
 							))}
 						</Box>
 
-						{!pending && (
+						{!pending && !ended && (
 							<Box sx={cinema ? styles.slab : [styles.panel, styles.box]}>
 								{!cinema && <StoryPanelFrame />}
 								<Box sx={styles.panelBody}>
