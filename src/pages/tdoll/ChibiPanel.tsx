@@ -11,7 +11,7 @@ import ZoomOutMapIcon from "@mui/icons-material/ZoomOutMap";
 
 import Live2dStage from "../../components/Live2dStage";
 import SpineStage from "../../components/SpineStage";
-import { STRIPED_STAGE_SX } from "../../components/stageStyles";
+import { STRIPED_STAGE_SX, TOGGLE_ROW_SX } from "../../components/stageStyles";
 import { FAB_EXPAND_SX } from "../../lib/artLayout";
 import { skinLive2dModelUrl, spineImageBase, spineUrl } from "../../lib/assets";
 import { resolveSkinLive2dVariant, useSkinLive2dMotions } from "../../lib/useLive2dMotions";
@@ -21,18 +21,8 @@ import type { SpineRig } from "../../types/spine";
 export type ChibiMode = "battle" | "dorm" | "live2d";
 
 const styles = {
-	// Shared by the Battle/Dorm/Live2D row and the Live2D Normal/Damaged row, matching the full-width toggle
-	// `HocAnimationsPanel` uses for its own rig picker.
-	toggleRow: {
-		width: "100%",
-		mb: 1,
-		"& .MuiToggleButton-root": { flex: 1 }
-	},
-	variantRow: {
-		width: "100%",
-		mt: 1,
-		"& .MuiToggleButton-root": { flex: 1 }
-	},
+	// The Live2D Normal/Damaged row sits under the caption, so it also keeps a gap above.
+	variantGap: { mt: 1 },
 	dialogueLine: {
 		mt: 1,
 		fontStyle: "italic",
@@ -118,7 +108,7 @@ export default memo(function ChibiPanel({ mode, onSelectMode, spineRig, normalId
 
 	return (
 		<>
-			<ToggleButtonGroup size="small" value={mode} exclusive onChange={handleModeChange} sx={styles.toggleRow} aria-label="Animation mode">
+			<ToggleButtonGroup size="small" value={mode} exclusive onChange={handleModeChange} sx={TOGGLE_ROW_SX} aria-label="Animation mode">
 				<ToggleButton value="battle">Battle</ToggleButton>
 				<ToggleButton value="dorm">Dorm</ToggleButton>
 				{hasLive2d ? <ToggleButton value="live2d">Live2D</ToggleButton> : null}
@@ -138,7 +128,7 @@ export default memo(function ChibiPanel({ mode, onSelectMode, spineRig, normalId
 			) : null}
 
 			{mode === "live2d" && hasBothVariants ? (
-				<ToggleButtonGroup size="small" value={variant} exclusive onChange={handleVariantChange} sx={styles.variantRow} aria-label="Live2D variant">
+				<ToggleButtonGroup size="small" value={variant} exclusive onChange={handleVariantChange} sx={[TOGGLE_ROW_SX, styles.variantGap]} aria-label="Live2D variant">
 					<ToggleButton value="normal">Normal</ToggleButton>
 					<ToggleButton value="damaged">Damaged</ToggleButton>
 				</ToggleButtonGroup>

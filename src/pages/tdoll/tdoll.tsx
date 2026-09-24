@@ -278,10 +278,7 @@ function TDollContent({ doll, spine }: TDollContentProps) {
 	const [skillLevel, setSkillLevel] = useState(10);
 	const [selectedSkill, setSelectedSkill] = useState(0); // 0 for Skill 1, 1 for Skill 2 if the doll has a Mod.
 
-	// Set initial states for animations.
-	const [animationMode, setAnimationMode] = useState(0); // 0 for Normal animations, 1 for Dorm animations.
-	// Which animation source the Animations card shows. Separate from animationMode above, which keeps its
-	// existing 0/1 meaning for picking the Spine rig even while Live2D is on screen.
+	// Which animation source the Animations card shows: the battle rig, the dorm rig, or the skin's Live2D model.
 	const [chibiMode, setChibiMode] = useState<ChibiMode>("battle");
 
 	// The doll's published Live2D forms, for the Animations card's Live2D toggle option. Null before the load
@@ -312,7 +309,7 @@ function TDollContent({ doll, spine }: TDollContentProps) {
 	// A skin wins over the Mod rigs, since skins have no Mod rigs and the game shows the skin's own chibi
 	// either way. A skin with no rig published falls back to the doll's own rigs rather than showing nothing.
 	const rigs = selectedSkinRigs ?? modRigs ?? spineEntry;
-	const spineRig = animationMode === 0 ? rigs?.combat : (rigs?.dorm ?? rigs?.combat);
+	const spineRig = chibiMode === "dorm" ? (rigs?.dorm ?? rigs?.combat) : rigs?.combat;
 
 	// The skin's resolved assets, from the manifest-derived form keyed `skin-<skinKey>`. Undefined when no skin is on screen or it has no art.
 	const skinAssets = skinKey === null ? undefined : tdoll.forms[skinFormKey(skinKey)];
@@ -405,15 +402,6 @@ function TDollContent({ doll, spine }: TDollContentProps) {
 		// Reset back to Skill 1 whenever the Mod toggle flips, in either direction.
 		setSelectedSkill(0);
 	}, [tdoll, mode, hasMod]);
-
-	// Switch which animation source the Animations card shows. Battle and Dorm keep driving animationMode's existing 0/1 meaning for the Spine
-	// rig. Live2D leaves the rig alone, so stepping back from Live2D returns to the same Battle or Dorm rig, which restarts at its first animation.
-	const selectChibiMode = useCallback((newMode: ChibiMode) => {
-		if (newMode !== "live2d") {
-			setAnimationMode(newMode === "dorm" ? 1 : 0);
-		}
-		setChibiMode(newMode);
-	}, []);
 
 	///////////////////////////////////////////////////////////////////////////////////////////
 	// Functions for Card images
@@ -536,7 +524,7 @@ function TDollContent({ doll, spine }: TDollContentProps) {
 									<LazySection minHeight={320}>
 										<ChibiPanel
 											mode={chibiMode}
-											onSelectMode={selectChibiMode}
+											onSelectMode={setChibiMode}
 											spineRig={spineRig}
 											normalId={tdoll.normal.id}
 											live2dForm={live2dForm}

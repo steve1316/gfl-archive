@@ -3,24 +3,14 @@ import type { MouseEvent } from "react";
 
 // MaterialUI imports
 import { ToggleButton, ToggleButtonGroup } from "@mui/material";
-import type { SxProps, Theme } from "@mui/material";
 
 import Live2dStage from "../../components/Live2dStage";
 import SpineStage from "../../components/SpineStage";
-import { STRIPED_STAGE_SX } from "../../components/stageStyles";
+import { STRIPED_STAGE_SX, TOGGLE_ROW_SX } from "../../components/stageStyles";
 import { hocLive2dModelUrl, hocSpineImageBase, hocSpineUrl } from "../../lib/assets";
 import { hasHocLive2d } from "../../lib/processData";
 import { useHocLive2dMotions } from "../../lib/useLive2dMotions";
 import type { HocSpineEntry } from "../../types/spine";
-
-const styles = {
-	// The same full-width toggle the Stats card uses to switch views.
-	rigToggle: {
-		width: "100%",
-		mb: 1,
-		"& .MuiToggleButton-root": { flex: 1 }
-	}
-} satisfies Record<string, SxProps<Theme>>;
 
 /** Props for HocAnimationsPanel. */
 interface HocAnimationsPanelProps {
@@ -63,7 +53,7 @@ export default function HocAnimationsPanel({ hocId, entry }: HocAnimationsPanelP
 
 	return (
 		<>
-			<ToggleButtonGroup size="small" value={live2dActive ? "live2d" : rigIndex} exclusive onChange={handleModeChange} sx={styles.rigToggle} aria-label="Rig">
+			<ToggleButtonGroup size="small" value={live2dActive ? "live2d" : rigIndex} exclusive onChange={handleModeChange} sx={TOGGLE_ROW_SX} aria-label="Rig">
 				{rigs.map((_rig, index) => (
 					<ToggleButton key={index} value={index}>
 						{index === 0 ? "Battle" : `Crew ${index}`}

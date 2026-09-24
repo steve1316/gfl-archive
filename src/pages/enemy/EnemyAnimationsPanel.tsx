@@ -3,10 +3,9 @@ import type { MouseEvent } from "react";
 
 // MaterialUI imports
 import { ToggleButton, ToggleButtonGroup } from "@mui/material";
-import type { SxProps, Theme } from "@mui/material";
 
 import SpineStage from "../../components/SpineStage";
-import { STRIPED_STAGE_SX } from "../../components/stageStyles";
+import { STRIPED_STAGE_SX, TOGGLE_ROW_SX } from "../../components/stageStyles";
 import { enemySpineImageBase, enemySpineUrl } from "../../lib/assets";
 import type { SpineRig } from "../../types/spine";
 
@@ -18,15 +17,6 @@ import type { SpineRig } from "../../types/spine";
  * two-way toggle a doll has, over the same skeleton.
  */
 const DORM_ANIMATIONS = new Set(["lying", "pick", "r_move", "r_wait", "sit"]);
-
-const styles = {
-	// The same full-width toggle the doll's chibi panel uses for its own Battle/Dorm picker.
-	toggleRow: {
-		width: "100%",
-		mb: 1,
-		"& .MuiToggleButton-root": { flex: 1 }
-	}
-} satisfies Record<string, SxProps<Theme>>;
 
 /** Props for EnemyAnimationsPanel. */
 interface EnemyAnimationsPanelProps {
@@ -58,7 +48,7 @@ export default memo(function EnemyAnimationsPanel({ id, rig }: EnemyAnimationsPa
 	return (
 		<>
 			{names.dorm.length > 0 ? (
-				<ToggleButtonGroup size="small" value={dorm ? "dorm" : "battle"} exclusive onChange={handleModeChange} sx={styles.toggleRow} aria-label="Animation mode">
+				<ToggleButtonGroup size="small" value={dorm ? "dorm" : "battle"} exclusive onChange={handleModeChange} sx={TOGGLE_ROW_SX} aria-label="Animation mode">
 					<ToggleButton value="battle">Battle</ToggleButton>
 					<ToggleButton value="dorm">Dorm</ToggleButton>
 				</ToggleButtonGroup>

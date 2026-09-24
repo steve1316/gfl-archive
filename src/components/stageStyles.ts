@@ -18,3 +18,6 @@ export const STRIPED_STAGE_SX = (theme: Theme) => ({
 	backgroundSize: "5.66px 5.66px",
 	cursor: "pointer"
 });
+
+/** A full-width toggle row above a stage, its buttons sharing the width evenly. Shared by the T-Doll, HOC and enemy cards. */
+export const TOGGLE_ROW_SX = { width: "100%", mb: 1, "& .MuiToggleButton-root": { flex: 1 } } as const;
