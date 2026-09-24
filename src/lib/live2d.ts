@@ -54,6 +54,8 @@ interface Live2dModel {
 	 * @param deltaMs Milliseconds since the last update.
 	 */
 	update(deltaMs: number): void;
+	/** The model's textures. pixi.js caches them by URL, so another model loaded from the same files holds the very same objects. */
+	textures: { destroy(destroyBase?: boolean): void }[];
 	/**
 	 * Free the model and its textures.
 	 *
@@ -351,6 +353,23 @@ export async function createLive2dStage(canvas: HTMLCanvasElement, modelUrl: str
 }
 
 /**
+ * Destroy a model the stage no longer shows, keeping every texture the model replacing it shares. Two forms of one character often use the
+ * same texture file, and destroying it would leave the new model drawing as black shapes.
+ *
+ * @param old The model going away.
+ * @param next The model taking its place.
+ */
+function retireModel(old: Live2dModel, next: Live2dModel): void {
+	const shared = new Set(next.textures);
+	for (const texture of old.textures) {
+		if (!shared.has(texture)) {
+			texture.destroy(true);
+		}
+	}
+	old.destroy({ children: true });
+}
+
+/**
  * Build a Live2D runtime for archive-kit's `AnimationStage` inside `host`. One PixiJS application and one canvas serve every model the stage
  * shows, and a new model swaps inside it. Tearing down a context and making another on the same canvas fails in the vendored runtime with
  * `checkMaxIfStatementsInShader`, so the context is never recreated. Frames come from the stage through `update`.
@@ -395,12 +414,13 @@ export async function createLive2dRuntime(host: HTMLElement): Promise<StageRunti
 		async load(modelUrl, signal) {
 			const next = await PIXI.live2d.Live2DModel.from(modelUrl, { autoInteract: false, autoUpdate: false });
 			if (signal.aborted) {
-				next.destroy({ children: true, texture: true, baseTexture: true });
+				// Its textures stay in pixi.js's cache, since the model on stage or a newer load may share them.
+				next.destroy({ children: true });
 				return null;
 			}
 			if (model) {
 				app.stage.removeChild(model);
-				model.destroy({ children: true, texture: true, baseTexture: true });
+				retireModel(model, next);
 			}
 			model = next;
 			fitModel(model, width, height);
