@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { MouseEvent } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -87,6 +87,15 @@ function FairyDetail({ fairy, constants, talents }: FairyDetailProps) {
 
 	const motions = useFairyLive2dMotions(hasLive2d ? fairy.id : undefined);
 	const live2dModelUrl = fairyLive2dModelUrl(fairy.id, form);
+	// Memoised, so the Live2D stage's memo holds across this page's own re-renders.
+	const live2dOverlay = useMemo(
+		() => (
+			<Fab color="primary" component={Link} to={`/fairy/${fairy.id}/live2d?stars=${stars}`} sx={FAB_EXPAND_SX} aria-label="view full Live2D">
+				<ZoomOutMapIcon />
+			</Fab>
+		),
+		[fairy.id, stars]
+	);
 
 	const handleForm = useCallback(
 		(_event: MouseEvent<HTMLElement>, value: number | null) => {
@@ -127,18 +136,7 @@ function FairyDetail({ fairy, constants, talents }: FairyDetailProps) {
 										</ToggleButtonGroup>
 									) : null}
 									{live2dActive ? (
-										<Live2dStage
-											modelUrl={live2dModelUrl}
-											motions={motions}
-											label="Fairy Live2D model"
-											resetCorner="left"
-											overlay={
-												<Fab color="primary" component={Link} to={`/fairy/${fairy.id}/live2d?stars=${stars}`} sx={FAB_EXPAND_SX} aria-label="view full Live2D">
-													<ZoomOutMapIcon />
-												</Fab>
-											}
-											sx={styles.artBox}
-										/>
+										<Live2dStage modelUrl={live2dModelUrl} motions={motions} label="Fairy Live2D model" resetCorner="left" overlay={live2dOverlay} sx={styles.artBox} />
 									) : (
 										<Box sx={styles.artBox}>
 											{hosted ? (

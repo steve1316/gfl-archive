@@ -49,7 +49,6 @@ interface Live2dStageProps {
 export default memo(function Live2dStage({ modelUrl, motions, label, onMotionChange, overlay, resetCorner, sx }: Live2dStageProps) {
 	useEffect(() => {
 		const warmup = new AbortController();
-		preloadLive2dRuntime();
 		warmLive2dModel(modelUrl, warmup.signal);
 		return () => warmup.abort();
 	}, [modelUrl]);
