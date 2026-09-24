@@ -23,6 +23,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import {
 	MOBILE_LANDSCAPE_QUERY,
 	MobileStoryReader,
+	STORY_END_Z,
 	StoryCorner,
 	StoryEndCard,
 	StoryLogPanel,
@@ -465,8 +466,8 @@ const styles = {
 	// is what keeps it readable, since plenty of scenes play on snow or on a white wash.
 	sceneFullscreen: {
 		position: "absolute",
-		// Over the end's black, which sits at 3 inside the stage, so it still works once the scene is over.
-		zIndex: 4,
+		// One above the kit's named end layer, so it still works once the scene is over.
+		zIndex: STORY_END_Z + 1,
 		top: "2.5%",
 		left: "2%",
 		width: 40,
@@ -1053,11 +1054,11 @@ export default function Story() {
 		const at = scripts.indexOf(sceneName);
 		return at === -1 ? null : (scripts[at + 1] ?? null);
 	}, [mission, sceneName]);
-	// Where each beat falls among the scene's lines, counted once per scene. The count jumps past a branch not taken, and the end shows the
-	// total, as AK's does.
+	// Where each beat falls among the scene's lines, counted once per scene. The count jumps past a branch not taken, and the end shows the total, as AK's does.
 	const counts = useMemo(() => lineCounts(scene?.beats ?? []), [scene]);
 	const lineAt = beat ? (counts.at.get(beat) ?? 0) : 0;
-	const progress = useMemo(() => ({ at: ended ? counts.total : lineAt, total: counts.total }), [counts, ended, lineAt]);
+	// Floored at 1: a stage-only opening beat has no line yet, and still reads "Line 1", as the kit's corner expects.
+	const progress = useMemo(() => ({ at: ended ? counts.total : Math.max(1, lineAt), total: counts.total }), [counts, ended, lineAt]);
 	// A new object only when the cue changes, so the corner shows a title once per track rather than on every beat.
 	const cornerTrack = useMemo(() => {
 		const title = trackTitle(stage.bgm);
