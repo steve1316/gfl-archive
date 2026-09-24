@@ -15,7 +15,6 @@ import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import AutorenewIcon from "@mui/icons-material/Autorenew";
 import VolumeUpIcon from "@mui/icons-material/VolumeUp";
 import VolumeOffIcon from "@mui/icons-material/VolumeOff";
-import FastForwardIcon from "@mui/icons-material/FastForward";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
 import SettingsIcon from "@mui/icons-material/Settings";
@@ -1465,7 +1464,7 @@ export default function Story() {
 			disabled: false,
 			gap: false
 		},
-		{ key: "skip", label: "Skip", aria: "Skip to the end", icon: <FastForwardIcon fontSize="small" />, onClick: toEnd, disabled: atEnd || choosing, gap: false },
+		{ key: "skip", label: "Skip", aria: "Skip to the end", icon: <StorySkipIcon fontSize="small" />, onClick: toEnd, disabled: atEnd || choosing, gap: false },
 		// Stacked, it is inlaid in the scene's own corner instead: a ninth plate wrapped onto a row of its own down there.
 		...(canFullscreen && !stacked
 			? [
