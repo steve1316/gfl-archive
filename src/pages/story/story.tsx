@@ -399,8 +399,20 @@ const styles = {
 	// The panel's flowing content, lifted over the drawn frame. The end row is positioned against the panel instead, so it is
 	// deliberately left out of this.
 	panelBody: { position: "relative", display: "flex", flexDirection: "column", minHeight: 0, flex: 1 },
-	// The choice menu takes the dialogue box's place, so the stage behind it stays visible while the reader decides.
-	choices: { position: "relative", display: "flex", flexDirection: "column", gap: 1 },
+	// The choice menu sits in the middle of the scene with the dialogue box gone, as the game and AK's player both draw it.
+	choices: {
+		position: "absolute",
+		left: "50%",
+		top: "50%",
+		transform: "translate(-50%, -50%)",
+		zIndex: 6,
+		display: "flex",
+		flexDirection: "column",
+		gap: 1,
+		maxHeight: "90%",
+		overflowY: "auto",
+		[STACKED]: { width: "86%" }
+	},
 	// The tints sit over the scene but under the dialogue, so a line spoken over a darkened scene is still readable.
 	wash: { position: "absolute", inset: 0, pointerEvents: "none", transition: `opacity ${WASH_MS}ms ease` },
 	// A beat's own transition, played once as it arrives and then gone, rather than a wash left sitting over the scene.
@@ -1586,6 +1598,19 @@ export default function Story() {
 						)}
 
 						<StoryCorner progress={corner.progress} track={corner.track} />
+						{pending && (
+							<Box sx={[styles.panel, styles.choices]} onClick={stopBubbling}>
+								<StoryPanelFrame marked={false} />
+								<Typography variant="caption" color="text.secondary">
+									Choose
+								</Typography>
+								{pending.options.map((option) => (
+									<Button key={option.label} size="small" variant="outlined" color="secondary" sx={styles.choiceButton} onClick={() => choose(timeline.pendingIndex, option.label)}>
+										{option.text}
+									</Button>
+								))}
+							</Box>
+						)}
 						{ended && <StoryEndCard variant="stage" title={ending.title} next={ending.next} back={BACK_TO_CHAPTERS} onRestart={restart} color="secondary" />}
 					</Box>
 
@@ -1651,19 +1676,7 @@ export default function Story() {
 							))}
 						</Box>
 
-						{pending ? (
-							<Box sx={[styles.panel, styles.choices]} onClick={stopBubbling}>
-								<StoryPanelFrame marked={false} />
-								<Typography variant="caption" color="text.secondary">
-									Choose
-								</Typography>
-								{pending.options.map((option) => (
-									<Button key={option.label} size="small" variant="outlined" color="secondary" sx={styles.choiceButton} onClick={() => choose(timeline.pendingIndex, option.label)}>
-										{option.text}
-									</Button>
-								))}
-							</Box>
-						) : (
+						{!pending && (
 							<Box sx={cinema ? styles.slab : [styles.panel, styles.box]}>
 								{!cinema && <StoryPanelFrame />}
 								<Box sx={styles.panelBody}>
