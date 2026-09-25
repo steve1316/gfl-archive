@@ -57,7 +57,7 @@ Art and animations are not in this repo. They load from [gfl-archive-assets](htt
 ## Data sources
 
 - **Game data** - stats, skills, profiles and release dates from [gf-data-us](https://github.com/gf-data-tools/gf-data-us), cross-checked against [gf-data-ch](https://github.com/gf-data-tools/gf-data-ch).
-- **Faction, manufacturer, country and full gun name** - [IOPWiki](https://iopwiki.com/) under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/), with gaps filled from [Wikidata](https://www.wikidata.org/) (CC0).
+- **Faction, manufacturer, country, full gun name and story music titles** - [IOPWiki](https://iopwiki.com/) under [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/), with the profile fields' gaps filled from [Wikidata](https://www.wikidata.org/) (CC0).
 - **Art and animations** - extracted from the game's own asset bundles.
 
 ## Credits
