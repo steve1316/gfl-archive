@@ -979,6 +979,11 @@ export default function Story() {
 	const [pageIndex, setPageIndex] = useState(0);
 	// The reader has read on past the last line, so the scene's end shows. It is a step of its own, so the last line is read before the end covers it.
 	const [finished, setFinished] = useState(false);
+	// Reached by Back rather than by reading on. The beat's sounds, shake and flash already played, so they stay quiet until the reader reads on
+	// to another beat. Read through a ref by the sound effect, which runs only when the beat changes.
+	const [steppedBack, setSteppedBack] = useState(false);
+	const steppedBackRef = useRef(steppedBack);
+	steppedBackRef.current = steppedBack;
 	// The branch number taken at each of the scene's choices, keyed by that choice's index into the branch map.
 	const [choices, setChoices] = useState<Record<number, string>>({});
 	// The count is stored with the text it belongs to. Keeping them apart let a new page render with the previous page's count
@@ -1047,10 +1052,10 @@ export default function Story() {
 	const atEnd = timeline.pending === null && beats.length > 0 && atLast;
 
 	const stage = useMemo(() => stageAt(beats, beatIndex), [beats, beatIndex]);
-	const shake = useMemo(() => shakeAt(beat), [beat]);
+	const shake = useMemo(() => (steppedBack ? null : shakeAt(beat)), [beat, steppedBack]);
 	// While a choice waits, the dialogue box keeps the line said before it rather than the choice's own, often empty, page.
 	const said = useMemo(() => (pending ? lastSaid(beats, beatIndex, pageIndex) : null), [pending, beats, beatIndex, pageIndex]);
-	const fade = fadeAt(beat);
+	const fade = !steppedBack && fadeAt(beat);
 	// Resolved once a beat. Each sprite costs several scans of the published-art list, and the page re-renders on every typed character.
 	const cast = useMemo(
 		() =>
@@ -1184,6 +1189,7 @@ export default function Story() {
 				setPageIndex(0);
 				setTyping({ text: "", count: 0 });
 				setFinished(false);
+				setSteppedBack(false);
 			},
 			() => active && setFailed(true)
 		);
@@ -1309,7 +1315,8 @@ export default function Story() {
 	// Sound effects fire once as their beat is reached, over whatever music is playing. They are one-shots, so a new SFX level applies from the
 	// next sound.
 	useEffect(() => {
-		if (muted || !beat) {
+		// A beat reached by Back already played its sounds.
+		if (muted || !beat || steppedBackRef.current) {
 			return;
 		}
 		for (const op of beat.ops) {
@@ -1338,6 +1345,7 @@ export default function Story() {
 		if (beatIndex + 1 < beats.length) {
 			setBeatIndex((current) => current + 1);
 			setPageIndex(0);
+			setSteppedBack(false);
 			return;
 		}
 		// Reading on from the last line ends the scene. A choice still waiting never gets here, since its menu is showing.
@@ -1353,16 +1361,24 @@ export default function Story() {
 			setFinished(false);
 			return;
 		}
-		if (pageIndex > 0) {
-			setPageIndex((current) => current - 1);
+		// The scene's very first page has nothing before it.
+		if (beatIndex === 0 && pageIndex === 0) {
 			return;
 		}
-		const next = Math.max(0, beatIndex - 1);
-		setBeatIndex(next);
-		setPageIndex(Math.max(0, (beats[next]?.pages.length ?? 1) - 1));
-		// Stepping back onto a choice forgets its pick, so reading on offers the choice again.
-		setChoices((current) => reachedChoices(current, timeline.starts, next));
-	}, [ended, pageIndex, beatIndex, beats, timeline.starts]);
+		const toBeat = pageIndex > 0 ? beatIndex : beatIndex - 1;
+		const toPage = pageIndex > 0 ? pageIndex - 1 : Math.max(0, (beats[toBeat]?.pages.length ?? 1) - 1);
+		// The earlier line shows whole rather than typing out again.
+		const target = beats[toBeat]?.pages[toPage];
+		const text = target ? pageText(target) : "";
+		setTyping({ text, count: text.length });
+		setSteppedBack(true);
+		setBeatIndex(toBeat);
+		setPageIndex(toPage);
+		if (toBeat !== beatIndex) {
+			// Stepping back onto a choice forgets its pick, so reading on offers the choice again.
+			setChoices((current) => reachedChoices(current, timeline.starts, toBeat));
+		}
+	}, [ended, beatIndex, pageIndex, beats, timeline.starts]);
 
 	const restart = useCallback(() => {
 		setBeatIndex(0);
@@ -1370,6 +1386,7 @@ export default function Story() {
 		setTyping({ text: "", count: 0 });
 		setChoices({});
 		setFinished(false);
+		setSteppedBack(false);
 	}, []);
 	const toEnd = useCallback(() => {
 		if (beats.length > 0) {
@@ -1377,6 +1394,7 @@ export default function Story() {
 			setPageIndex(Math.max(0, (beats[beats.length - 1]?.pages.length ?? 1) - 1));
 			// With no choice in the way, Skip lands on the end itself rather than the last line.
 			setFinished(timeline.pending === null);
+			setSteppedBack(false);
 		}
 	}, [beats, timeline.pending]);
 	const choose = useCallback(
@@ -1386,6 +1404,7 @@ export default function Story() {
 			setBeatIndex(beats.length);
 			setPageIndex(0);
 			setTyping({ text: "", count: 0 });
+			setSteppedBack(false);
 		},
 		[beats]
 	);
