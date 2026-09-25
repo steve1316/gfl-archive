@@ -731,7 +731,10 @@ function logLines(played: StoryBeat[], upTo: number, page: number, order: Map<St
 		}
 		const pages = position === upTo ? beat.pages.slice(0, page + 1) : beat.pages;
 		for (const entry of pages) {
-			lines.push({ speaker: beat.speaker, text: pageText(entry) });
+			// A page with no text, such as a choice's own, is no line to read.
+			if (pageText(entry).trim() !== "") {
+				lines.push({ speaker: beat.speaker, text: pageText(entry) });
+			}
 		}
 	});
 	return lines;
@@ -1123,8 +1126,10 @@ export default function Story() {
 	// The last few spoken lines before the one on screen, for the stacked layout to show above it. Picks and track starts stay in the Logs.
 	const transcript = useMemo(() => {
 		const spoken = readLines.filter((line) => line.kind === undefined);
-		return (page === null || ended ? spoken : spoken.slice(0, -1)).slice(-TRANSCRIPT_LINES);
-	}, [readLines, page, ended]);
+		// The line in the box is left out: the page on screen, or at a choice the line kept from before it. A page with no text shows none.
+		const boxed = !ended && (said !== null || (page !== null && pageText(page).trim() !== ""));
+		return (boxed ? spoken.slice(0, -1) : spoken).slice(-TRANSCRIPT_LINES);
+	}, [readLines, page, ended, said]);
 
 	useEffect(() => {
 		document.title = mission ? `${mission.title} - Story` : "Story";
@@ -1571,7 +1576,7 @@ export default function Story() {
 		[pending, choose, timeline.pendingIndex]
 	);
 	// Only the phone shows it, so the desktop does not type each line twice.
-	const phoneCurrent: StoryCurrentLine | null = phone && !pending && !ended && page ? { speaker: beat?.speaker ?? null, text: renderTyped(page, typed), typing: !done } : null;
+	const phoneCurrent: StoryCurrentLine | null = phone && !pending && !ended && page && full.trim() !== "" ? { speaker: beat?.speaker ?? null, text: renderTyped(page, typed), typing: !done } : null;
 
 	return (
 		<Box component="main" ref={frameRef} sx={phone && scene ? [styles.main, PHONE_MAIN_SX] : styles.main}>
