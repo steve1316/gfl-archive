@@ -278,6 +278,8 @@ const styles = {
 	},
 	// The scene's picture, on its own layer so a beat that blanks the background fades it out and leaves the cast against the bare stage.
 	scene: { position: "absolute", inset: 0, transition: `opacity ${WASH_MS}ms ease` },
+	// A new picture fades in over the stage's black. The scene is keyed on its picture, so every change plays this, as AK's stage does.
+	sceneIn: { animation: `storySceneIn ${WASH_MS}ms ease-out`, "@keyframes storySceneIn": { from: { opacity: 0 }, to: { opacity: 1 } } },
 	sprites: { position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" },
 	// One slot per character on stage, spread evenly across the full width: one sits centred, two at a third and two thirds.
 	// Each is a square the height of the stage, dropped so the character is framed from the waist up, as the game draws them.
@@ -1552,7 +1554,8 @@ export default function Story() {
 	// The scene's layers, drawn by both layouts: the picture, the cast, and the washes and fade over them.
 	const stageLayers = (
 		<>
-			<Box sx={[styles.scene, { background: backing, opacity: stage.blankedTo === null ? 1 : 0 }]} />
+			{/* A new element per picture, so each change fades in. One that arrives under a blackout stays unseen until it lifts, with no flash. */}
+			<Box key={backing} data-region="story-scene" sx={[styles.scene, stage.blankedTo === null ? styles.sceneIn : {}, { background: backing, opacity: stage.blankedTo === null ? 1 : 0 }]} />
 
 			<Box sx={styles.sprites}>
 				{cast.map((member, position) => {
