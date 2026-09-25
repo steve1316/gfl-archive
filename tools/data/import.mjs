@@ -25,7 +25,7 @@ import { buildEquipment, exclusivesByDoll } from "./lib/equipment.mjs";
 import { buildFairies } from "./lib/fairies.mjs";
 import { buildFormation, buildFormationEnemies } from "./lib/formation.mjs";
 import { buildHocs } from "./lib/hocs.mjs";
-import { fetchIopwikiPages, parseEnRelease, wikipediaTitle } from "./lib/iopwiki.mjs";
+import { fetchIopwikiPageText, fetchIopwikiPages, parseEnRelease, wikipediaTitle } from "./lib/iopwiki.mjs";
 import { findEquipmentMentions } from "./lib/mentions.mjs";
 import { buildProfile, fillFromWikidata, indexPages, releaseFor } from "./lib/profile.mjs";
 import { SHARDS } from "./lib/shards.mjs";
@@ -34,6 +34,7 @@ import { readStatConfig } from "./lib/stats.mjs";
 import { loadUpstream, readLock, resolveUpstreamDir } from "./lib/upstream.mjs";
 import { fetchWikidataFacts } from "./lib/wikidata.mjs";
 import { writeStory } from "../story/build_story.mjs";
+import { OST_PAGE, writeMusicTitles } from "../story/music_titles.mjs";
 
 /** Where generated data is written. */
 const OUT_DIR = "src/data";
@@ -199,6 +200,12 @@ async function main() {
 	}
 	for (const [tag, count] of story.unknownTags) {
 		ctx.warnings.push(`story tag <${tag}> is not recognised by the parser, seen ${count} time${count === 1 ? "" : "s"}`);
+	}
+
+	// Now Playing's titles, from IOPWiki's soundtrack page, read through the game's own audio table where a script names a track by number.
+	const music = writeMusicTitles(upstreamDir, story.tracks, await fetchIopwikiPageText(OST_PAGE));
+	for (const ref of music.missing) {
+		ctx.warnings.push(`story track ${ref} has no title on IOPWiki's soundtrack page or in tools/story/music-titles-extra.json`);
 	}
 
 	const { repo, sha } = readLock();

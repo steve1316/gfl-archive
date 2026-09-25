@@ -121,6 +121,56 @@ export async function fetchIopwikiPages({ cacheDir = DEFAULT_CACHE_DIR, wait = s
 	return pages;
 }
 
+/**
+ * Fetch one IOPWiki page's wikitext, cached like `fetchIopwikiPages`. `IOPWIKI_CACHE=reuse` reads the cache back instead of the network, and
+ * fails when the page was never cached. The scheduled refresh sets FLARESOLVERR_URL, since IOPWiki's Cloudflare challenges GitHub's runners.
+ *
+ * @param {string} title The page's title, such as "Girls' Frontline Original Soundtrack".
+ * @param {object} [options] Options.
+ * @param {string} [options.cacheDir] Directory the cache file lives in, instead of `tools/data/.cache`.
+ * @param {(ms: number) => Promise<void>} [options.wait] Waits before a retry. Tests pass a stub so they do not sleep.
+ * @param {string} [options.flareSolverrUrl] FlareSolverr's base URL. Defaults to $FLARESOLVERR_URL, which only the CI refresh sets.
+ * @returns {Promise<string>} The page's wikitext.
+ * @throws {Error} When the request or the API fails, when the page does not exist, or in reuse mode when there is no cache file.
+ */
+export async function fetchIopwikiPageText(title, { cacheDir = DEFAULT_CACHE_DIR, wait = sleep, flareSolverrUrl = process.env.FLARESOLVERR_URL } = {}) {
+	const slug = title
+		.toLowerCase()
+		.replace(/[^a-z0-9]+/g, "-")
+		.replace(/^-|-$/g, "");
+	const cacheFile = path.join(cacheDir, `iopwiki-page-${slug}.json`);
+	if (process.env.IOPWIKI_CACHE === "reuse") {
+		if (!fs.existsSync(cacheFile)) {
+			throw new Error(`IOPWIKI_CACHE=reuse but there is no cache file at ${cacheFile}. Run once without it to fetch from IOPWiki.`);
+		}
+		return JSON.parse(fs.readFileSync(cacheFile, "utf8")).wikitext;
+	}
+	const params = new URLSearchParams({ action: "query", titles: title, prop: "revisions", rvprop: "content", rvslots: "main", format: "json", formatversion: "2" });
+	const url = `${API_BASE}?${params.toString()}`;
+	const solver = flareSolverrUrl ? await createFlareSolverrClient(flareSolverrUrl, { wait }) : null;
+	try {
+		const response = solver ? await solver.get(url) : await fetchWithRetry(url, { headers: { "User-Agent": USER_AGENT } }, { wait });
+		if (!response.ok) {
+			throw new Error(`IOPWiki API request failed: ${response.status} ${response.statusText}`);
+		}
+		const body = await response.json();
+		if (body.error) {
+			throw new Error(`IOPWiki API error ${body.error.code ?? "unknown"}: ${body.error.info ?? JSON.stringify(body.error)}`);
+		}
+		const wikitext = body.query?.pages?.[0]?.revisions?.[0]?.slots?.main?.content;
+		if (typeof wikitext !== "string") {
+			throw new Error(`IOPWiki has no page "${title}"`);
+		}
+		fs.mkdirSync(cacheDir, { recursive: true });
+		fs.writeFileSync(cacheFile, JSON.stringify({ title, wikitext }));
+		return wikitext;
+	} finally {
+		if (solver) {
+			await solver.close().catch((error) => console.warn(`warning: closing the FlareSolverr session failed (${error.message})`));
+		}
+	}
+}
+
 // //////////////////////////////////////////////////////////////////////////////////////////////////
 // //////////////////////////////////////////////////////////////////////////////////////////////////
 // Template parsing

@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import { plainText } from "../data/lib/iopwiki.mjs";
 
 // //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -21,6 +24,12 @@ const TABLE_HEADER = /!\s*Track name\s*!!\s*File name/;
 
 /** The fewest titles the page should yield. Far fewer means its tables have changed, and the import stops rather than writing too few. */
 const MIN_TITLES = 100;
+
+/** The hand-kept titles, for tracks the soundtrack page does not list, or lists without a file name. */
+const EXTRA_FILE = path.join("tools", "story", "music-titles-extra.json");
+
+/** Where the titles are written, beside the story's other data. */
+const OUT_FILE = path.join("src", "data", "story", "music-titles.json");
 
 // //////////////////////////////////////////////////////////////////////////////////////////////////
 // //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -149,4 +158,21 @@ export function storyTracks(scenes) {
 		}
 	}
 	return [...refs].sort();
+}
+
+/**
+ * Write Now Playing's titles for every track the story plays.
+ *
+ * @param {string} dir The upstream checkout, for the game's audio table.
+ * @param {string[]} refs The track references the scenes play, from `storyTracks`.
+ * @param {string} wikitext The soundtrack page's wikitext.
+ * @returns {{ count: number, missing: string[] }} How many tracks got a title, and the references left without one.
+ * @throws {Error} When the page's tables cannot be read, from `parseOstTable`.
+ */
+export function writeMusicTitles(dir, refs, wikitext) {
+	const template = parseAudioTemplate(fs.readFileSync(path.join(dir, "asset", "textdata", "audiotemplate.txt"), "utf8"));
+	const extra = JSON.parse(fs.readFileSync(EXTRA_FILE, "utf8"));
+	const { titles, missing } = buildMusicTitles(refs, parseOstTable(wikitext), template, extra);
+	fs.writeFileSync(OUT_FILE, `${JSON.stringify(titles)}\n`);
+	return { count: Object.keys(titles).length, missing };
 }

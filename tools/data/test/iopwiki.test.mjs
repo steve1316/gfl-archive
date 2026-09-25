@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { fetchIopwikiPages, parseEnRelease, parsePlayableUnit, plainText, wikipediaTitle } from "../lib/iopwiki.mjs";
+import { fetchIopwikiPageText, fetchIopwikiPages, parseEnRelease, parsePlayableUnit, plainText, wikipediaTitle } from "../lib/iopwiki.mjs";
 
 const hk416 = fs.readFileSync("tools/data/test/fixtures/iopwiki-hk416.wikitext", "utf8");
 const beowulf = fs.readFileSync("tools/data/test/fixtures/iopwiki-beowulf.wikitext", "utf8");
@@ -285,5 +285,24 @@ test("fetchIopwikiPages routes every IOPWiki request through FlareSolverr when g
 		assert.deepEqual(commands, ["sessions.create", "request.get", "sessions.destroy"]);
 	} finally {
 		globalThis.fetch = original;
+	}
+});
+
+test("fetchIopwikiPageText reads a page back from its cache in reuse mode", async () => {
+	fs.writeFileSync(path.join(cacheDir, "iopwiki-page-girls-frontline-original-soundtrack.json"), JSON.stringify({ title: "Girls' Frontline Original Soundtrack", wikitext: "cached text" }));
+	process.env.IOPWIKI_CACHE = "reuse";
+	try {
+		assert.equal(await fetchIopwikiPageText("Girls' Frontline Original Soundtrack", { cacheDir }), "cached text");
+	} finally {
+		delete process.env.IOPWIKI_CACHE;
+	}
+});
+
+test("fetchIopwikiPageText in reuse mode fails when the page was never cached", async () => {
+	process.env.IOPWIKI_CACHE = "reuse";
+	try {
+		await assert.rejects(fetchIopwikiPageText("Some Page", { cacheDir }), /no cache file/);
+	} finally {
+		delete process.env.IOPWIKI_CACHE;
 	}
 });

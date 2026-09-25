@@ -17,6 +17,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { storyTracks } from "./music_titles.mjs";
 import { parseScript } from "./parse_avg.mjs";
 
 // //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -234,7 +235,9 @@ export function buildStory(upstream, dir) {
 			beats: beatCount,
 			unknownTags,
 			missingScripts,
-			uncatalogued: [...uncatalogued]
+			uncatalogued: [...uncatalogued],
+			// Every track the scenes play, for the importer's title step.
+			tracks: storyTracks(scenes)
 		}
 	};
 }
