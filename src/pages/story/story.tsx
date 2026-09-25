@@ -42,7 +42,7 @@ import ScrollToTop from "../../components/ScrollToTop";
 import { storyAudioUrl, storyBackgroundUrl, storySpriteUrl, storyUiUrl } from "../../lib/assets";
 import { loadStoryChapter, loadStoryIndex, loadStoryScene } from "../../lib/data";
 import { hasStoryAudio, hasStoryBackground, hasStorySprite, hasStoryUi, storySpriteStem } from "../../lib/processData";
-import { branchRegions, buildTimeline, reachedChoices } from "../../lib/storyBranches";
+import { branchRegions, buildTimeline, linesRead, lineTotal, reachedChoices } from "../../lib/storyBranches";
 import type { BranchMap } from "../../lib/storyBranches";
 import { trackTitle } from "../../lib/storyMusic";
 import type { StoryBeat, StoryChapter, StoryChapterSummary, StoryMission, StoryPage, StoryScene } from "../../types/story";
@@ -579,14 +579,6 @@ interface Stage {
 	blankedTo: "black" | "white" | null;
 }
 
-/** Where each beat falls among a scene's lines, from `lineCounts`. */
-interface LineCounts {
-	/** How many beats with text the scene holds, both sides of every branch included. */
-	total: number;
-	/** Each beat's line number: its place among the beats with text, or the count so far for a beat that only changes the stage. */
-	at: Map<StoryBeat, number>;
-}
-
 /**
  * Every picture a scene will ask for, in the order its beats reach them.
  *
@@ -699,26 +691,6 @@ function lastSaid(played: StoryBeat[], at: number, page: number): { beat: StoryB
 		}
 	}
 	return null;
-}
-
-/**
- * Count a scene's lines in script order. A beat with text is one line however many pages it runs to, and a beat that only changes the stage
- * takes the count so far. Both sides of every branch count, so the total holds from the start. Keyed by the beat itself, since the timeline
- * plays the scene's own beat objects.
- *
- * @param beats The scene's beats, every branch included.
- * @returns The total and each beat's line number.
- */
-function lineCounts(beats: StoryBeat[]): LineCounts {
-	const at = new Map<StoryBeat, number>();
-	let seen = 0;
-	for (const beat of beats) {
-		if (beat.pages.length > 0) {
-			seen += 1;
-		}
-		at.set(beat, seen);
-	}
-	return { total: seen, at };
 }
 
 /**
@@ -1108,12 +1080,13 @@ export default function Story() {
 		const at = scripts.indexOf(sceneName);
 		return at === -1 ? null : (scripts[at + 1] ?? null);
 	}, [mission, sceneName]);
-	// Where each beat falls among the scene's lines, counted once per scene. The count jumps past a branch not taken, and the end shows the total, as AK's does.
-	const counts = useMemo(() => lineCounts(scene?.beats ?? []), [scene]);
-	const lineAt = beat ? (counts.at.get(beat) ?? 0) : 0;
+	// Every page with text is a line, so each click moves the count on by one. Only the path being read counts, and a choice not yet answered
+	// counts its longest answer, so the total can only drop once the reader picks. The end shows the total, as AK's does.
+	const lineCount = useMemo(() => (scene && branches ? lineTotal(scene.beats, branches, choices) : 0), [scene, branches, choices]);
+	const lineAt = useMemo(() => linesRead(beats, beatIndex, pageIndex), [beats, beatIndex, pageIndex]);
 	// Floored at 1: a stage-only opening beat has no line yet, and still reads "Line 1", as the kit's corner expects.
 	// A scene with no lines at all shows no count.
-	const progress = useMemo(() => (counts.total > 0 ? { at: ended ? counts.total : Math.max(1, lineAt), total: counts.total } : null), [counts, ended, lineAt]);
+	const progress = useMemo(() => (lineCount > 0 ? { at: ended ? lineCount : Math.max(1, lineAt), total: lineCount } : null), [lineCount, ended, lineAt]);
 	// A new object only when the cue changes, so the corner shows a title once per track rather than on every beat.
 	const cornerTrack = useMemo(() => {
 		const title = trackTitle(stage.bgm);

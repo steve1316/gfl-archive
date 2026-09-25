@@ -68,6 +68,17 @@ function branchLabel(beat: StoryBeat): string | null {
 }
 
 /**
+ * How many of a beat's pages carry text, up to a page. A choice's own page often has none, and a page with no text is no line to read.
+ *
+ * @param beat The beat.
+ * @param upTo How many of its pages to look at, from the first.
+ * @returns The count.
+ */
+function textPages(beat: StoryBeat, upTo = beat.pages.length): number {
+	return beat.pages.slice(0, upTo).filter((page) => page.spans.some((span) => span.text.trim() !== "")).length;
+}
+
+/**
  * The first thing an alternative actually says, to stand in as its label where the script wrote no prompt.
  *
  * The opening beats of an alternative are often silent - a background change or a fade - so this looks through the alternative until
@@ -207,4 +218,55 @@ export function buildTimeline(beats: StoryBeat[], map: BranchMap, choices: Recor
 export function reachedChoices(choices: Record<number, string>, starts: Record<number, number>, at: number): Record<number, string> {
 	const kept = Object.fromEntries(Object.entries(choices).filter(([region]) => (starts[Number(region)] ?? Infinity) <= at));
 	return Object.keys(kept).length === Object.keys(choices).length ? choices : kept;
+}
+
+/**
+ * How many lines the path being read holds, counting every page with text. A picked answer's pages count and the others' do not, and a choice
+ * not yet answered counts its longest answer, so the total can only drop once the reader picks.
+ *
+ * @param beats The scene's beats.
+ * @param map The scene's branch map.
+ * @param choices The branch number picked for each region, keyed by its index into `map.regions`.
+ * @returns The total.
+ */
+export function lineTotal(beats: StoryBeat[], map: BranchMap, choices: Record<number, string>): number {
+	// Each region's pages per answer, so an unanswered one can take its longest.
+	const sizes = map.regions.map(() => new Map<string, number>());
+	beats.forEach((beat, index) => {
+		const label = map.labelOf[index];
+		const size = sizes[map.regionOf[index] ?? -1];
+		if (label && size) {
+			size.set(label, (size.get(label) ?? 0) + textPages(beat));
+		}
+	});
+	const counted = sizes.map((size, region) => {
+		if (choices[region] !== undefined) {
+			return choices[region];
+		}
+		let longest: string | null = null;
+		let most = -1;
+		for (const [label, count] of size) {
+			if (count > most) {
+				longest = label;
+				most = count;
+			}
+		}
+		return longest;
+	});
+	return beats.reduce((total, beat, index) => {
+		const region = map.regionOf[index] ?? -1;
+		return region === -1 || map.labelOf[index] === counted[region] ? total + textPages(beat) : total;
+	}, 0);
+}
+
+/**
+ * How many lines have been read along the path, the page on screen included, counting every page with text. It goes up by one per click.
+ *
+ * @param played The beats the timeline plays.
+ * @param at Index of the beat on screen.
+ * @param page Index of the page on screen.
+ * @returns The count, 0 before any text.
+ */
+export function linesRead(played: StoryBeat[], at: number, page: number): number {
+	return played.slice(0, at + 1).reduce((read, beat, index) => read + textPages(beat, index === at ? page + 1 : beat.pages.length), 0);
 }
