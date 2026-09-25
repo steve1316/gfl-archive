@@ -46,6 +46,7 @@ import { branchRegions, buildTimeline, linesRead, lineTotal, reachedChoices } fr
 import type { BranchMap } from "../../lib/storyBranches";
 import { trackTitle } from "../../lib/storyMusic";
 import type { StoryBeat, StoryChapter, StoryChapterSummary, StoryMission, StoryPage, StoryScene } from "../../types/story";
+import MUSIC_TITLES from "../../data/story/music-titles.json";
 
 /** How long one character takes to type before the reader's speed and `SPEED_BASE` apply, in milliseconds. */
 const TYPE_MS = 28;
@@ -724,7 +725,7 @@ function logLines(played: StoryBeat[], upTo: number, page: number, order: Map<St
 		const cue = beat.ops.filter((op) => op.type === "bgm" && op.value).at(-1)?.value ?? null;
 		if (cue !== null && cue !== playing) {
 			playing = cue;
-			const title = trackTitle(cue);
+			const title = trackTitle(cue, MUSIC_TITLES);
 			if (title !== null) {
 				lines.push({ speaker: null, text: title, kind: "track" });
 			}
@@ -1092,7 +1093,7 @@ export default function Story() {
 	const progress = useMemo(() => (lineCount > 0 ? { at: ended ? lineCount : Math.max(1, lineAt), total: lineCount } : null), [lineCount, ended, lineAt]);
 	// A new object only when the cue changes, so the corner shows a title once per track rather than on every beat.
 	const cornerTrack = useMemo(() => {
-		const title = trackTitle(stage.bgm);
+		const title = trackTitle(stage.bgm, MUSIC_TITLES);
 		return title === null ? null : { title };
 	}, [stage.bgm]);
 	const corner = useMemo<StoryCornerProps>(() => ({ progress, track: cornerTrack }), [progress, cornerTrack]);
