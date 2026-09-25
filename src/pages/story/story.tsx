@@ -1251,6 +1251,7 @@ export default function Story() {
 		if (beats.length > 0 && beatIndex > beats.length - 1) {
 			setBeatIndex(beats.length - 1);
 			setPageIndex(0);
+			setSteppedBack(false);
 		}
 	}, [beats, beatIndex]);
 
