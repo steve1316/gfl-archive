@@ -1531,7 +1531,7 @@ export default function Story() {
 			disabled: false,
 			gap: false
 		},
-		{ key: "skip", label: "Skip", aria: "Skip to the end", icon: <StorySkipIcon fontSize="small" />, onClick: toEnd, disabled: ended || choosing, gap: false },
+		{ key: "skip", label: "Skip", aria: "Skip to the next choice", icon: <StorySkipIcon fontSize="small" />, onClick: toEnd, disabled: ended || choosing, gap: false },
 		// Stacked, it is inlaid in the scene's own corner instead: a ninth plate wrapped onto a row of its own down there.
 		...(canFullscreen && !stacked
 			? [
@@ -1587,7 +1587,7 @@ export default function Story() {
 			{ key: "log", label: "Log", ariaLabel: "Backlog", icon: <HistoryIcon />, onClick: openBacklog, group: true },
 			{ key: "auto", label: "Auto", ariaLabel: auto ? "Stop autoplay" : "Autoplay", icon: auto ? <AutorenewIcon /> : <PlayArrowIcon />, onClick: toggleAuto, active: auto, spin: true },
 			{ key: "sound", label: "Sound", ariaLabel: soundOff ? "Turn sound on" : "Turn sound off", icon: soundOff ? <VolumeOffIcon /> : <VolumeUpIcon />, onClick: pressSound },
-			{ key: "skip", label: "Skip", ariaLabel: "Skip to the end", icon: <StorySkipIcon />, onClick: toEnd, disabled: ended || choosing }
+			{ key: "skip", label: "Skip", ariaLabel: "Skip to the next choice", icon: <StorySkipIcon />, onClick: toEnd, disabled: ended || choosing }
 		],
 		[openMenu, back, beatIndex, pageIndex, restart, openBacklog, auto, toggleAuto, soundOff, pressSound, toEnd, ended, choosing]
 	);
