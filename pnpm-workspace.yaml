@@ -2,6 +2,6 @@
 # The key carries the resolved commit, so it has to be updated in the same commit that moves the pinned tag. Without it the install stops at
 # ERR_PNPM_GIT_DEP_PREPARE_NOT_ALLOWED, and the error prints the exact line to paste.
 allowBuilds:
-  archive-kit@https://codeload.github.com/steve1316/archive-kit/tar.gz/bf3b25cc138d6c4cf66efd566565e75989e69c11: true
+  archive-kit@https://codeload.github.com/steve1316/archive-kit/tar.gz/8044937ac02095df7267e43ae796559eb57a1539: true
 minimumReleaseAgeExclude:
   - vite@8.3.0
