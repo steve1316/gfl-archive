@@ -30,6 +30,7 @@ import {
 	StorySettingsPanel,
 	StorySkipIcon,
 	useAudioGate,
+	useFullscreen,
 	useIsMobile,
 	useStoryKeys,
 	useStorySettings
@@ -772,26 +773,6 @@ function useSideMargin(ref: RefObject<HTMLElement | null>): number {
 }
 
 /**
- * Whether an element is the one the browser is showing fullscreen, kept in step with the browser's own view of it.
- *
- * The reader can leave fullscreen without touching the plate, with the back gesture or `Esc`, so this follows the browser rather
- * than remembering what was asked for.
- *
- * @param ref The element the plate puts fullscreen.
- * @returns Whether it is fullscreen now.
- */
-function useFullscreen(ref: RefObject<HTMLElement | null>): boolean {
-	const [full, setFull] = useState(false);
-	useEffect(() => {
-		const sync = () => setFull(document.fullscreenElement === ref.current && ref.current !== null);
-		sync();
-		document.addEventListener("fullscreenchange", sync);
-		return () => document.removeEventListener("fullscreenchange", sync);
-	}, [ref]);
-	return full;
-}
-
-/**
  * The stage as it stands at a beat, folded from the ops of every beat up to and including it.
  *
  * Background and music persist until something changes them, so they cannot be read off the current beat alone.
@@ -1029,7 +1010,6 @@ export default function Story() {
 	const cinema = sideMargin >= CINEMA_MIN_MARGIN;
 	// The navbar sits outside this element, so putting it fullscreen takes the browser's chrome and ours away together.
 	const fullscreen = useFullscreen(frameRef);
-	const canFullscreen = typeof document !== "undefined" && document.fullscreenEnabled;
 	// Read here as well as in the styles, since where the fullscreen control belongs is a question of markup, not of appearance.
 	const stacked = useMediaQuery(STACKED_QUERY);
 	// A phone reads through archive-kit's shared reader, so every archive reads the same on one. Desktop keeps the layout below.
@@ -1432,14 +1412,6 @@ export default function Story() {
 	const soundOff = muted || blocked;
 	// The stage advances on a click, so a click landing on a choice button must not also count as advancing the scene.
 	const stopBubbling = useCallback((event: MouseEvent) => event.stopPropagation(), []);
-	const toggleFullscreen = useCallback(() => {
-		if (document.fullscreenElement !== null) {
-			void document.exitFullscreen().catch(() => {});
-			return;
-		}
-		// Refused when the browser does not count this as a user gesture, which is nothing to report: the plate simply does nothing.
-		void frameRef.current?.requestFullscreen().catch(() => {});
-	}, []);
 	const openMenu = useCallback(() => setMenuOpen(true), []);
 	const closeMenu = useCallback(() => setMenuOpen(false), []);
 	const showHint = useCallback(() => setHintOpen(true), []);
@@ -1536,14 +1508,14 @@ export default function Story() {
 		},
 		{ key: "skip", label: "Skip", aria: "Skip to the next choice", icon: <StorySkipIcon fontSize="small" />, onClick: toEnd, disabled: ended || choosing, gap: false },
 		// Stacked, it is inlaid in the scene's own corner instead: a ninth plate wrapped onto a row of its own down there.
-		...(canFullscreen && !stacked
+		...(fullscreen.supported && !stacked
 			? [
 					{
 						key: "full",
-						label: fullscreen ? "Exit" : "Full",
-						aria: fullscreen ? "Leave fullscreen" : "Fill the screen",
-						icon: fullscreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />,
-						onClick: toggleFullscreen,
+						label: fullscreen.active ? "Exit" : "Full",
+						aria: fullscreen.active ? "Leave fullscreen" : "Fill the screen",
+						icon: fullscreen.active ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />,
+						onClick: fullscreen.toggle,
 						disabled: false,
 						gap: true
 					}
@@ -1643,16 +1615,16 @@ export default function Story() {
 					>
 						{stageLayers}
 
-						{canFullscreen && stacked && (
+						{fullscreen.supported && stacked && (
 							<IconButton
 								sx={styles.sceneFullscreen}
-								aria-label={fullscreen ? "Leave fullscreen" : "Fill the screen"}
+								aria-label={fullscreen.active ? "Leave fullscreen" : "Fill the screen"}
 								onClick={(event) => {
 									event.stopPropagation();
-									toggleFullscreen();
+									fullscreen.toggle();
 								}}
 							>
-								{fullscreen ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
+								{fullscreen.active ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />}
 							</IconButton>
 						)}
 
