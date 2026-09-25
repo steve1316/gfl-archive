@@ -32,6 +32,7 @@ import {
 	useAudioGate,
 	useFullscreen,
 	useIsMobile,
+	useMediaSession,
 	useStoryKeys,
 	useStorySettings
 } from "archive-kit";
@@ -1270,17 +1271,17 @@ export default function Story() {
 			// A browser may refuse to start audio before the reader has clicked. The gate then holds the track for the next click in the player.
 			void playAudio(element, { keep: true });
 		}
-		// Without this the phone's notification shade falls back to the page's favicon and its URL, which says nothing useful.
-		if ("mediaSession" in navigator) {
-			const art = stage.background ?? mission?.background ?? null;
-			navigator.mediaSession.metadata = new MediaMetadata({
-				title: mission?.title ?? sceneName,
-				artist: cue ?? undefined,
-				album: "Griffin Archive",
-				artwork: art !== null && hasStoryBackground(art) ? [{ src: storyBackgroundUrl(art), type: "image/webp" }] : []
-			});
-		}
-	}, [stage.bgm, stage.background, muted, mission, sceneName, playAudio, forgetAudio]);
+	}, [stage.bgm, muted, playAudio, forgetAudio]);
+
+	// Without this the phone's notification shade falls back to the page's favicon and its URL, which says nothing useful. The kit clears it
+	// when the reader leaves the story.
+	const shadeArt = stage.background ?? mission?.background ?? null;
+	useMediaSession({
+		title: mission?.title ?? sceneName,
+		artist: trackTitle(stage.bgm, MUSIC_TITLES) ?? undefined,
+		album: "Griffin Archive",
+		artwork: shadeArt !== null && hasStoryBackground(shadeArt) ? storyBackgroundUrl(shadeArt) : null
+	});
 
 	// The music's volume follows the BGM setting live, apart from the effect above, so moving the slider leaves playback alone.
 	useEffect(() => {
