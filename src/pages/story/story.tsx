@@ -228,6 +228,15 @@ const SHAKE_UNIT = 0.0015;
 /** The longest a shake runs, in seconds. Scripts ask for up to 4, which reads as a fault rather than an impact. */
 const SHAKE_MAX_S = 1.2;
 
+// The shake's keyframes, written against the `--shake` custom property so one set of frames serves every amplitude. Registered under two
+// identical names, so restarting a shake on the next beat means switching names rather than remounting the stage.
+const STORY_SHAKE_FRAMES = {
+	"10%, 90%": { transform: "translateX(calc(var(--shake) * -1))" },
+	"20%, 80%": { transform: "translateX(calc(var(--shake) * 1.8))" },
+	"30%, 50%, 70%": { transform: "translateX(calc(var(--shake) * -2.6))" },
+	"40%, 60%": { transform: "translateX(calc(var(--shake) * 2.6))" }
+};
+
 const styles = {
 	// The scene takes the whole of what the navbar leaves, and sits centred in it when the window is taller than 16:9.
 	//
@@ -267,7 +276,9 @@ const styles = {
 		// Queried by the characters, so a comms window can be sized against the stage rather than against its own slot.
 		containerType: "size",
 		// Keeps the end's black inside the stage, so the plates and the dialogue, which sit outside it, stay above it and usable.
-		isolation: "isolate"
+		isolation: "isolate",
+		"@keyframes storyShake0": STORY_SHAKE_FRAMES,
+		"@keyframes storyShake1": STORY_SHAKE_FRAMES
 	},
 	// The scene's picture, on its own layer so a beat that blanks the background fades it out and leaves the cast against the bare stage.
 	scene: { position: "absolute", inset: 0, transition: `opacity ${WASH_MS}ms ease` },
@@ -826,19 +837,18 @@ function stageAt(beats: StoryBeat[], upTo: number): Stage {
 /**
  * The stage animation for one shake.
  *
+ * The keyframes live on `styles.stage` under two identical names. Alternating between them by the beat's index restarts the shake on a
+ * new beat without remounting the stage, so a shake never replays the scene's own fade-in.
+ *
  * @param shake The shake.
- * @returns An `sx` fragment holding the animation and its keyframes.
+ * @param beatIndex The current beat's index, used to pick which of the two keyframe names to animate with.
+ * @returns An `sx` fragment holding the shake's amplitude and its animation.
  */
-function shakeSx(shake: Shake) {
+function shakeSx(shake: Shake, beatIndex: number) {
 	const amplitude = shake.range * SHAKE_UNIT * 100;
 	return {
-		animation: `storyShake ${shake.duration}s cubic-bezier(.36,.07,.19,.97) both`,
-		"@keyframes storyShake": {
-			"10%, 90%": { transform: `translateX(${-amplitude}%)` },
-			"20%, 80%": { transform: `translateX(${amplitude * 1.8}%)` },
-			"30%, 50%, 70%": { transform: `translateX(${-amplitude * 2.6}%)` },
-			"40%, 60%": { transform: `translateX(${amplitude * 2.6}%)` }
-		}
+		"--shake": `${amplitude}%`,
+		animation: `storyShake${beatIndex % 2} ${shake.duration}s cubic-bezier(.36,.07,.19,.97) both`
 	};
 }
 
@@ -1624,11 +1634,7 @@ export default function Story() {
 				</Box>
 			) : phone ? (
 				<MobileStoryReader
-					scene={
-						<Box key={shake ? `shake-${beatIndex}` : "stage"} sx={[styles.stage, { bgcolor: stage.blankedTo === "white" ? "#ffffff" : "#000000" }, shake ? shakeSx(shake) : {}]}>
-							{stageLayers}
-						</Box>
-					}
+					scene={<Box sx={[styles.stage, { bgcolor: stage.blankedTo === "white" ? "#ffffff" : "#000000" }, shake ? shakeSx(shake, beatIndex) : {}]}>{stageLayers}</Box>}
 					corner={corner}
 					controls={phoneControls}
 					lines={readLines}
@@ -1647,11 +1653,7 @@ export default function Story() {
 				/>
 			) : (
 				<Box ref={playerRef} sx={[styles.player, cinema ? styles.playerCinema : {}]} onClick={advance} onClickCapture={interact} role="button" tabIndex={-1} aria-label="Advance the scene">
-					<Box
-						// Keyed on the beat so a shake restarts when the reader reaches another one, rather than only on the first.
-						key={shake ? `shake-${beatIndex}` : "stage"}
-						sx={[styles.stage, cinema ? styles.stageCinema : {}, { bgcolor: stage.blankedTo === "white" ? "#ffffff" : "#000000" }, shake ? shakeSx(shake) : {}]}
-					>
+					<Box sx={[styles.stage, cinema ? styles.stageCinema : {}, { bgcolor: stage.blankedTo === "white" ? "#ffffff" : "#000000" }, shake ? shakeSx(shake, beatIndex) : {}]}>
 						{stageLayers}
 
 						{fullscreen.supported && stacked && (
