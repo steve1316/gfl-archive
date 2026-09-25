@@ -378,7 +378,7 @@ const styles = {
 	},
 	transcriptLine: { fontSize: 14, lineHeight: 1.55, color: "text.disabled", mb: 0.75 },
 	transcriptSpeaker: { fontWeight: 700, color: "text.secondary" },
-	// The dialogue box and the choice menu are the same panel in the same place, so they share it rather than each drawing their own.
+	// The dialogue box's panel.
 	panel: {
 		position: "relative",
 		width: { xs: "94%", sm: `${BOX_WIDTH_PCT}%` },
@@ -399,16 +399,17 @@ const styles = {
 	// The panel's flowing content, lifted over the drawn frame. The end row is positioned against the panel instead, so it is
 	// deliberately left out of this.
 	panelBody: { position: "relative", display: "flex", flexDirection: "column", minHeight: 0, flex: 1 },
-	// The choice menu sits in the middle of the scene with the dialogue box gone, as the game and AK's player both draw it.
+	// The options alone, in the middle of the scene and as wide as the dialogue box, which stays where it is under them.
 	choices: {
 		position: "absolute",
 		left: "50%",
 		top: "50%",
 		transform: "translate(-50%, -50%)",
 		zIndex: 6,
+		width: `${BOX_WIDTH_PCT}%`,
 		display: "flex",
 		flexDirection: "column",
-		gap: 1,
+		gap: "1.5cqh",
 		maxHeight: "90%",
 		overflowY: "auto",
 		[STACKED]: { width: "86%" }
@@ -518,7 +519,22 @@ const styles = {
 	menuSub: { pl: 5, fontSize: 12.5, color: "text.secondary" },
 	link: { textDecoration: "none", color: "text.primary" },
 	menuHead: { px: 2, pt: 1.5, pb: 0.5, fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: "secondary.main", fontWeight: 700 },
-	choiceButton: { justifyContent: "flex-start", textAlign: "left", textTransform: "none", lineHeight: 1.5 },
+	// The game's own choice bars: dark, with a thin light edge and the text centred.
+	choiceButton: {
+		justifyContent: "center",
+		textAlign: "center",
+		textTransform: "none",
+		lineHeight: 1.45,
+		fontSize: "max(13px, 2.05cqh)",
+		fontWeight: 400,
+		px: "2.2cqh",
+		py: "1.25cqh",
+		borderRadius: 0,
+		color: "#f2f2f2",
+		bgcolor: "rgba(12, 12, 14, 0.82)",
+		border: "1px solid rgba(255, 255, 255, 0.5)",
+		"&:hover": { bgcolor: "rgba(255, 255, 255, 0.14)", borderColor: "#ffffff" }
+	},
 	// Holds its line whether or not the beat names anyone: the panel art cuts a notch across its top right, and narration that
 	// started at the very top of the box ran straight into it.
 	// The stacked panel is tall enough that a 0.5 gap read as the body being part of the speaker's own line.
@@ -660,6 +676,29 @@ function backdrop(background: string | null): string {
  */
 function pageText(page: StoryPage): string {
 	return page.spans.map((span) => span.text).join("");
+}
+
+/**
+ * The last page with text at or before the one on screen, and the beat it belongs to. A choice's own page is often empty, so this is the
+ * line the dialogue box keeps showing while the options wait.
+ *
+ * @param played The beats the timeline plays.
+ * @param at Index of the beat on screen.
+ * @param page Index of the page on screen.
+ * @returns The beat and page, or null when nothing has been said yet.
+ */
+function lastSaid(played: StoryBeat[], at: number, page: number): { beat: StoryBeat; page: StoryPage } | null {
+	for (let index = at; index >= 0; index--) {
+		const beat = played[index];
+		const pages = beat ? (index === at ? beat.pages.slice(0, page + 1) : beat.pages) : [];
+		for (let position = pages.length - 1; position >= 0; position--) {
+			const entry = pages[position];
+			if (beat && entry && pageText(entry).trim() !== "") {
+				return { beat, page: entry };
+			}
+		}
+	}
+	return null;
 }
 
 /**
@@ -1033,6 +1072,8 @@ export default function Story() {
 
 	const stage = useMemo(() => stageAt(beats, beatIndex), [beats, beatIndex]);
 	const shake = useMemo(() => shakeAt(beat), [beat]);
+	// While a choice waits, the dialogue box keeps the line said before it rather than the choice's own, often empty, page.
+	const said = useMemo(() => (pending ? lastSaid(beats, beatIndex, pageIndex) : null), [pending, beats, beatIndex, pageIndex]);
 	const fade = fadeAt(beat);
 	// Resolved once a beat. Each sprite costs several scans of the published-art list, and the page re-renders on every typed character.
 	const cast = useMemo(
@@ -1615,13 +1656,9 @@ export default function Story() {
 
 						<StoryCorner progress={corner.progress} track={corner.track} />
 						{pending && (
-							<Box sx={[styles.panel, styles.choices]} onClick={stopBubbling}>
-								<StoryPanelFrame marked={false} />
-								<Typography variant="caption" color="text.secondary">
-									Choose
-								</Typography>
+							<Box sx={styles.choices} onClick={stopBubbling}>
 								{pending.options.map((option) => (
-									<Button key={option.label} size="small" variant="outlined" color="secondary" sx={styles.choiceButton} onClick={() => choose(timeline.pendingIndex, option.label)}>
+									<Button key={option.label} sx={styles.choiceButton} onClick={() => choose(timeline.pendingIndex, option.label)}>
 										{option.text}
 									</Button>
 								))}
@@ -1692,17 +1729,17 @@ export default function Story() {
 							))}
 						</Box>
 
-						{!pending && !ended && (
+						{!ended && (
 							<Box sx={cinema ? styles.slab : [styles.panel, styles.box]}>
 								{!cinema && <StoryPanelFrame />}
 								<Box sx={styles.panelBody}>
 									{/* Always drawn, so narration starts on the same line a spoken beat does rather than riding up into the frame. */}
-									<Typography variant="subtitle2" sx={styles.speaker} aria-hidden={!beat?.speaker}>
-										{beat?.speaker ?? ""}
+									<Typography variant="subtitle2" sx={styles.speaker} aria-hidden={!(said?.beat ?? beat)?.speaker}>
+										{(said?.beat ?? beat)?.speaker ?? ""}
 									</Typography>
 									<Typography variant="body1" sx={cinema ? styles.slabText : styles.text}>
-										{renderTyped(page, typed)}
-										{!done && (
+										{said ? renderTyped(said.page, pageText(said.page).length) : renderTyped(page, typed)}
+										{!done && !said && (
 											<Box component="span" sx={styles.caret}>
 												|
 											</Box>
