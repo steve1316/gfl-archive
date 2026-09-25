@@ -171,14 +171,13 @@ export function storyTracks(scenes) {
  *
  * @param {string} dir The upstream checkout, for the game's audio table.
  * @param {string[]} refs The track references the scenes play, from `storyTracks`.
- * @param {string} wikitext The soundtrack page's wikitext.
+ * @param {Map<string, string>} ost The soundtrack page's titles, from `parseOstTable`.
  * @returns {{ count: number, missing: string[] }} How many tracks got a title, and the references left without one.
- * @throws {Error} When the page's tables cannot be read, from `parseOstTable`.
  */
-export function writeMusicTitles(dir, refs, wikitext) {
+export function writeMusicTitles(dir, refs, ost) {
 	const template = parseAudioTemplate(fs.readFileSync(path.join(dir, "asset", "textdata", "audiotemplate.txt"), "utf8"));
 	const extra = JSON.parse(fs.readFileSync(EXTRA_FILE, "utf8"));
-	const { titles, missing } = buildMusicTitles(refs, parseOstTable(wikitext), template, extra);
+	const { titles, missing } = buildMusicTitles(refs, ost, template, extra);
 	fs.writeFileSync(OUT_FILE, `${JSON.stringify(titles)}\n`);
 	return { count: Object.keys(titles).length, missing };
 }

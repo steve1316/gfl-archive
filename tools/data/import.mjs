@@ -34,7 +34,7 @@ import { readStatConfig } from "./lib/stats.mjs";
 import { loadUpstream, readLock, resolveUpstreamDir } from "./lib/upstream.mjs";
 import { fetchWikidataFacts } from "./lib/wikidata.mjs";
 import { writeStory } from "../story/build_story.mjs";
-import { OST_PAGE, writeMusicTitles } from "../story/music_titles.mjs";
+import { OST_PAGE, parseOstTable, writeMusicTitles } from "../story/music_titles.mjs";
 
 /** Where generated data is written. */
 const OUT_DIR = "src/data";
@@ -138,6 +138,8 @@ async function main() {
 	for (const doll of dolls) {
 		doll.skins = addExtraSkins(doll.skins, doll.normal.id, extraSkins);
 	}
+	// Fetched and parsed before anything is written, so a bad fetch or a changed page fails before writeStory below deletes src/data/story.
+	const ost = parseOstTable(await fetchIopwikiPageText(OST_PAGE));
 	const profiles = await attachProfiles(dolls, upstream);
 	for (const fix of overrides.fields) {
 		const doll = dolls.find((entry) => entry.normal.id === fix.doll);
@@ -203,7 +205,7 @@ async function main() {
 	}
 
 	// Now Playing's titles, from IOPWiki's soundtrack page, read through the game's own audio table where a script names a track by number.
-	const music = writeMusicTitles(upstreamDir, story.tracks, await fetchIopwikiPageText(OST_PAGE));
+	const music = writeMusicTitles(upstreamDir, story.tracks, ost);
 	for (const ref of music.missing) {
 		ctx.warnings.push(`story track ${ref} has no title on IOPWiki's soundtrack page or in tools/story/music-titles-extra.json`);
 	}
