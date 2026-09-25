@@ -1471,79 +1471,126 @@ export default function Story() {
 		}
 	});
 
-	// The plate row, described once and drawn from the description.
-	const plates = [
-		{ key: "menu", label: "Menu", aria: "Scenes menu", icon: <MenuIcon fontSize="small" />, onClick: openMenu, disabled: false, gap: false },
-		{ key: "settings", label: "Settings", aria: "Settings", icon: <SettingsIcon fontSize="small" />, onClick: openSettings, disabled: false, gap: false },
-		{ key: "back", label: "Back", aria: "Back a line", icon: <ChevronLeftIcon fontSize="small" />, onClick: back, disabled: beatIndex === 0 && pageIndex === 0, gap: true },
-		{ key: "next", label: "Next", aria: "Next line", icon: <ChevronRightIcon fontSize="small" />, onClick: advance, disabled: false, gap: false },
-		{ key: "reset", label: "Reset", aria: "Restart the scene", icon: <ReplayIcon fontSize="small" />, onClick: restart, disabled: false, gap: false },
-		{ key: "log", label: "Log", aria: "Backlog", icon: <HistoryIcon fontSize="small" />, onClick: openBacklog, disabled: false, gap: true },
-		{
-			key: "auto",
-			label: "Auto",
-			aria: auto ? "Stop autoplay" : "Autoplay",
-			icon: auto ? <AutorenewIcon fontSize="small" /> : <PlayArrowIcon fontSize="small" />,
-			onClick: toggleAuto,
-			disabled: false,
-			gap: false,
-			running: auto
-		},
-		{
-			key: "sound",
-			label: "Sound",
-			aria: soundOff ? "Turn sound on" : "Turn sound off",
-			icon: soundOff ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />,
-			onClick: pressSound,
-			disabled: false,
-			gap: false
-		},
-		{ key: "skip", label: "Skip", aria: "Skip to the next choice", icon: <StorySkipIcon fontSize="small" />, onClick: toEnd, disabled: ended || choosing, gap: false },
-		// Stacked, it is inlaid in the scene's own corner instead: a ninth plate wrapped onto a row of its own down there.
-		...(fullscreen.supported && !stacked
-			? [
-					{
-						key: "full",
-						label: fullscreen.active ? "Exit" : "Full",
-						aria: fullscreen.active ? "Leave fullscreen" : "Fill the screen",
-						icon: fullscreen.active ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />,
-						onClick: fullscreen.toggle,
-						disabled: false,
-						gap: true
-					}
-				]
-			: [])
-	];
+	// The plate row, described once per change rather than on every typed character.
+	const plates = useMemo(
+		() => [
+			{ key: "menu", label: "Menu", aria: "Scenes menu", icon: <MenuIcon fontSize="small" />, onClick: openMenu, disabled: false, gap: false },
+			{ key: "settings", label: "Settings", aria: "Settings", icon: <SettingsIcon fontSize="small" />, onClick: openSettings, disabled: false, gap: false },
+			{ key: "back", label: "Back", aria: "Back a line", icon: <ChevronLeftIcon fontSize="small" />, onClick: back, disabled: beatIndex === 0 && pageIndex === 0, gap: true },
+			{ key: "next", label: "Next", aria: "Next line", icon: <ChevronRightIcon fontSize="small" />, onClick: advance, disabled: false, gap: false },
+			{ key: "reset", label: "Reset", aria: "Restart the scene", icon: <ReplayIcon fontSize="small" />, onClick: restart, disabled: false, gap: false },
+			{ key: "log", label: "Log", aria: "Backlog", icon: <HistoryIcon fontSize="small" />, onClick: openBacklog, disabled: false, gap: true },
+			{
+				key: "auto",
+				label: "Auto",
+				aria: auto ? "Stop autoplay" : "Autoplay",
+				icon: auto ? <AutorenewIcon fontSize="small" /> : <PlayArrowIcon fontSize="small" />,
+				onClick: toggleAuto,
+				disabled: false,
+				gap: false,
+				running: auto
+			},
+			{
+				key: "sound",
+				label: "Sound",
+				aria: soundOff ? "Turn sound on" : "Turn sound off",
+				icon: soundOff ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />,
+				onClick: pressSound,
+				disabled: false,
+				gap: false
+			},
+			{ key: "skip", label: "Skip", aria: "Skip to the next choice", icon: <StorySkipIcon fontSize="small" />, onClick: toEnd, disabled: ended || choosing, gap: false },
+			// Stacked, it is inlaid in the scene's own corner instead: a ninth plate wrapped onto a row of its own down there.
+			...(fullscreen.supported && !stacked
+				? [
+						{
+							key: "full",
+							label: fullscreen.active ? "Exit" : "Full",
+							aria: fullscreen.active ? "Leave fullscreen" : "Fill the screen",
+							icon: fullscreen.active ? <FullscreenExitIcon fontSize="small" /> : <FullscreenIcon fontSize="small" />,
+							onClick: fullscreen.toggle,
+							disabled: false,
+							gap: true
+						}
+					]
+				: [])
+		],
+		[
+			openMenu,
+			openSettings,
+			back,
+			beatIndex,
+			pageIndex,
+			advance,
+			restart,
+			openBacklog,
+			auto,
+			toggleAuto,
+			soundOff,
+			pressSound,
+			toEnd,
+			ended,
+			choosing,
+			fullscreen.supported,
+			fullscreen.active,
+			fullscreen.toggle,
+			stacked
+		]
+	);
+
+	// The plates' buttons, built with the list, so a typed character hands React the same elements and it leaves them alone.
+	const plateButtons = useMemo(
+		() =>
+			plates.map((plate) => (
+				<Button
+					key={plate.key}
+					variant="outlined"
+					sx={[styles.stageButton, plate.gap && !cinema ? styles.plateGap : {}, plate.running ? styles.stageButtonRunning : {}]}
+					onClick={plate.onClick}
+					disabled={plate.disabled}
+					aria-label={plate.aria}
+				>
+					{plate.icon}
+					<Box component="span" sx={styles.stageButtonLabel}>
+						{plate.label}
+					</Box>
+				</Button>
+			)),
+		[plates, cinema]
+	);
 
 	// The scene's layers, drawn by both layouts: the picture, the cast, and the washes and fade over them.
-	const stageLayers = (
-		<>
-			{/* A new element per picture, so each change fades in. One that arrives under a blackout stays unseen until it lifts, with no flash. */}
-			<Box key={backing} data-region="story-scene" sx={[styles.scene, stage.blankedTo === null ? styles.sceneIn : {}, { background: backing, opacity: stage.blankedTo === null ? 1 : 0 }]} />
+	const stageLayers = useMemo(
+		() => (
+			<>
+				{/* A new element per picture, so each change fades in. One that arrives under a blackout stays unseen until it lifts, with no flash. */}
+				<Box key={backing} data-region="story-scene" sx={[styles.scene, stage.blankedTo === null ? styles.sceneIn : {}, { background: backing, opacity: stage.blankedTo === null ? 1 : 0 }]} />
 
-			<Box sx={styles.sprites}>
-				{cast.map((member, position) => {
-					const left = `${(100 * (position + 1)) / (cast.length + 1)}%`;
-					return member.calling ? (
-						<Box key={member.key} sx={[styles.comms, { left }]}>
-							<Box sx={styles.commsCrop}>
-								<Box component="img" src={member.src} alt={member.prefab} sx={styles.commsArt} />
-								<Box sx={styles.commsScreen} />
+				<Box sx={styles.sprites}>
+					{cast.map((member, position) => {
+						const left = `${(100 * (position + 1)) / (cast.length + 1)}%`;
+						return member.calling ? (
+							<Box key={member.key} sx={[styles.comms, { left }]}>
+								<Box sx={styles.commsCrop}>
+									<Box component="img" src={member.src} alt={member.prefab} sx={styles.commsArt} />
+									<Box sx={styles.commsScreen} />
+								</Box>
+								<Box sx={styles.commsFrame} />
 							</Box>
-							<Box sx={styles.commsFrame} />
-						</Box>
-					) : (
-						<Box key={member.key} sx={[styles.spriteSlot, { left }]}>
-							<Box component="img" src={member.src} alt={member.prefab} sx={styles.spriteArt} />
-						</Box>
-					);
-				})}
-			</Box>
+						) : (
+							<Box key={member.key} sx={[styles.spriteSlot, { left }]}>
+								<Box component="img" src={member.src} alt={member.prefab} sx={styles.spriteArt} />
+							</Box>
+						);
+					})}
+				</Box>
 
-			<Box sx={[styles.wash, { bgcolor: "#0a1020", opacity: stage.night ? 0.42 : 0 }]} />
-			<Box sx={[styles.wash, { bgcolor: "#000", opacity: stage.darkened ? 0.55 : 0 }]} />
-			{fade && <Box key={`fade-${beatIndex}`} sx={[styles.fade, { bgcolor: "#ffffff" }]} />}
-		</>
+				<Box sx={[styles.wash, { bgcolor: "#0a1020", opacity: stage.night ? 0.42 : 0 }]} />
+				<Box sx={[styles.wash, { bgcolor: "#000", opacity: stage.darkened ? 0.55 : 0 }]} />
+				{fade && <Box key={`fade-${beatIndex}`} sx={[styles.fade, { bgcolor: "#ffffff" }]} />}
+			</>
+		),
+		[backing, stage.blankedTo, stage.night, stage.darkened, cast, fade, beatIndex]
 	);
 
 	// The plates in the reader's own form. A tap on the scene or the box reads on, so there is no Next, and fullscreen comes from the reader.
@@ -1634,21 +1681,7 @@ export default function Story() {
 					</Box>
 
 					<Box sx={[styles.stageControls, cinema ? styles.controlsCinema : {}, cinema ? { width: sideMargin } : {}]} onClick={stopBubbling}>
-						{plates.map((plate) => (
-							<Button
-								key={plate.key}
-								variant="outlined"
-								sx={[styles.stageButton, plate.gap && !cinema ? styles.plateGap : {}, plate.running ? styles.stageButtonRunning : {}]}
-								onClick={plate.onClick}
-								disabled={plate.disabled}
-								aria-label={plate.aria}
-							>
-								{plate.icon}
-								<Box component="span" sx={styles.stageButtonLabel}>
-									{plate.label}
-								</Box>
-							</Button>
-						))}
+						{plateButtons}
 						<StorySettingsCard open={settingsOpen} onClose={closeSettings} sx={cinema ? styles.settingsCardCinema : styles.settingsCard}>
 							<StorySettingsPanel value={settings} />
 						</StorySettingsCard>
