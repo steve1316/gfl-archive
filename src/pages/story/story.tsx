@@ -29,6 +29,7 @@ import {
 	StorySettingsCard,
 	StorySettingsPanel,
 	StorySkipIcon,
+	fillBelowNavbar,
 	useAudioGate,
 	useFullscreen,
 	useIsMobile,
@@ -232,27 +233,17 @@ const styles = {
 	//
 	// Measured against the viewport rather than the page: the wrapper above grows to its content, so a `height: 100%` here left a
 	// 16:9 stage on a wide window taller than the space it had, pushing the panel off the bottom and giving the page a scrollbar.
-	// The bar's own heights come from the theme, which is where MUI keeps the three it uses.
-	main: (theme: Theme) => {
-		const below = (height: unknown) => ({ height: `calc(100dvh - ${typeof height === "number" ? `${height}px` : String(height)})` });
-		const bar = theme.mixins.toolbar as Record<string, unknown>;
-		const queries = Object.fromEntries(
-			Object.entries(bar)
-				.filter(([key, value]) => key.startsWith("@media") && typeof value === "object" && value !== null && "minHeight" in value)
-				.map(([key, value]) => [key, below((value as { minHeight: unknown }).minHeight)])
-		);
-		return {
-			...below(bar.minHeight),
-			display: "flex",
-			alignItems: "center",
-			justifyContent: "center",
-			overflow: "hidden",
-			bgcolor: "#05070c",
-			// Queried by the stage, so it can take the lesser of the width it has and the width its height allows.
-			containerType: "size",
-			...queries
-		};
-	},
+	// The kit's `fillBelowNavbar` takes the bar's heights from the theme, which is where MUI keeps the three it uses.
+	main: (theme: Theme) => ({
+		...fillBelowNavbar(theme.mixins.toolbar, "height"),
+		display: "flex",
+		alignItems: "center",
+		justifyContent: "center",
+		overflow: "hidden",
+		bgcolor: "#05070c",
+		// Queried by the stage, so it can take the lesser of the width it has and the width its height allows.
+		containerType: "size"
+	}),
 	// Holds the scene and its chrome. Above the breakpoint it is exactly the scene's box and the chrome is laid over it; below, it
 	// becomes a column and the chrome falls into flow underneath.
 	player: {
