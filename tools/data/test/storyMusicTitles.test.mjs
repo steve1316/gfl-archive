@@ -53,6 +53,14 @@ test("a row whose player cell runs onto a second line still reads", () => {
 	assert.equal(ost.get("m_end"), "Polaris");
 });
 
+test("a CD tracklist table on the same page is not read as a track table", () => {
+	const cdTable = ['{| class="wikitable"', "|-", "! # !! Title", "|-", "| 16 || The War has Begun", "|}"].join("\n");
+	const ost = parseOstTable(`${cdTable}\n${table(["Anthem\u00b9 || BGM_A || Menus || [[File:BGM_A.ogg]]"])}`, 1);
+	assert.equal(ost.has("the"), false);
+	assert.equal(ost.has("16"), false);
+	assert.equal(ost.get("bgm_a"), "Anthem");
+});
+
 test("a page without the track tables, or with too few rows, fails rather than yielding no titles", () => {
 	assert.throws(() => parseOstTable("no tables here"), /track table/);
 	assert.throws(() => parseOstTable(table(["Anthem\u00b9 || BGM_A || Menus || [[File:BGM_A.ogg]]"])), /rows/);

@@ -55,7 +55,8 @@ function pickTitle(cell) {
 
 /**
  * Read the soundtrack page's track tables into a title for each file name and ID they list, keyed lower-cased. A row whose file cell also
- * gives an ID in parentheses is listed under both, and the first row to name a key keeps it.
+ * gives an ID in parentheses is listed under both, and the first row to name a key keeps it. The page also carries CD tracklist tables,
+ * which are skipped: only tables whose own header matches `TABLE_HEADER` are read.
  *
  * @param {string} wikitext The page's wikitext.
  * @param {number} [minTitles] The fewest titles to accept. Tests pass 1 for a short fixture.
@@ -67,20 +68,25 @@ export function parseOstTable(wikitext, minTitles = MIN_TITLES) {
 		throw new Error('the soundtrack page has no track table headed "Track name !! File name", so its layout has changed');
 	}
 	const titles = new Map();
-	for (const chunk of wikitext.split(/\n\|-[^\n]*\n/)) {
-		// A row is its first line. A long row can carry its player cell onto a second one.
-		const line = chunk.trim().split("\n")[0] ?? "";
-		if (!line.startsWith("|") || line.startsWith("|}")) {
+	for (const table of wikitext.match(/\{\|[\s\S]*?\n\|\}/g) ?? []) {
+		if (!TABLE_HEADER.test(table)) {
 			continue;
 		}
-		const [first, files] = line.slice(1).split(/\s*\|\|\s*/);
-		const title = first ? pickTitle(first) : "";
-		if (title === "" || !files) {
-			continue;
-		}
-		for (const key of files.match(/[A-Za-z0-9_&-]+/g) ?? []) {
-			if (!titles.has(key.toLowerCase())) {
-				titles.set(key.toLowerCase(), title);
+		for (const chunk of table.split(/\n\|-[^\n]*\n/)) {
+			// A row is its first line. A long row can carry its player cell onto a second one.
+			const line = chunk.trim().split("\n")[0] ?? "";
+			if (!line.startsWith("|") || line.startsWith("|}")) {
+				continue;
+			}
+			const [first, files] = line.slice(1).split(/\s*\|\|\s*/);
+			const title = first ? pickTitle(first) : "";
+			if (title === "" || !files) {
+				continue;
+			}
+			for (const key of files.match(/[A-Za-z0-9_&-]+/g) ?? []) {
+				if (!titles.has(key.toLowerCase())) {
+					titles.set(key.toLowerCase(), title);
+				}
 			}
 		}
 	}
