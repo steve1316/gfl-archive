@@ -116,6 +116,9 @@ const BACKGROUND_WASHES = new Set(["black", "white"]);
 /** How wide the dialogue box sits, as a share of the stage, matching the game's own layout. */
 const BOX_WIDTH_PCT = 46;
 
+/** The cinema slab's line size in pixels, before the reader's text size scales it. */
+const SLAB_TEXT_PX = 14;
+
 /** How far a character is dropped below the top of the stage, as a share of its height. */
 const SPRITE_DROP_PCT = 20;
 
@@ -359,7 +362,8 @@ const styles = {
 		bgcolor: "rgba(8, 9, 13, 0.9)",
 		borderLeft: `3px solid ${AMBER}`
 	},
-	slabText: { whiteSpace: "pre-wrap", lineHeight: 1.6, fontSize: 14, flex: 1, minHeight: 0, overflowY: "auto" },
+	// Its size is set inline by `lineFontSize`, which scales it by the reader's text size.
+	slabText: { whiteSpace: "pre-wrap", lineHeight: 1.6, flex: 1, minHeight: 0, overflowY: "auto" },
 	transcriptCinema: { display: "flex", flexDirection: "column", justifyContent: "flex-end", flex: "0 100 auto", minHeight: 0, overflow: "hidden", px: 0 },
 	// Everything that sits along the bottom of the scene, stacked so a taller dialogue box pushes the hint up instead of meeting it.
 	bottomStack: {
@@ -832,6 +836,18 @@ function stageAt(beats: StoryBeat[], upTo: number): Stage {
 		}
 	}
 	return stage;
+}
+
+/**
+ * The line's font size at the reader's text size. The panel's line scales from the panel's own size, which is the page's body text, so it
+ * keeps that text's breakpoints. The cinema slab's scales from its fixed size. The box heights are in em, so they grow with it.
+ *
+ * @param cinema Whether the line is in the cinema slab rather than the panel.
+ * @param textSize The reader's text size, 0.8 to 1.5.
+ * @returns A CSS font size.
+ */
+function lineFontSize(cinema: boolean, textSize: number): string {
+	return cinema ? `${SLAB_TEXT_PX * textSize}px` : `${textSize}em`;
 }
 
 /**
@@ -1649,6 +1665,7 @@ export default function Story() {
 					settings={<StorySettingsPanel value={settings} sceneSize />}
 					onPanelChange={setSheetOpen}
 					sceneSize={settings.sceneSize}
+					textSize={settings.textSize}
 					sx={READER_SX}
 				/>
 			) : (
@@ -1738,7 +1755,7 @@ export default function Story() {
 									<Typography variant="subtitle2" sx={styles.speaker} aria-hidden={!(said?.beat ?? beat)?.speaker}>
 										{(said?.beat ?? beat)?.speaker ?? ""}
 									</Typography>
-									<Typography variant="body1" sx={cinema ? styles.slabText : styles.text}>
+									<Typography variant="body1" sx={cinema ? styles.slabText : styles.text} style={{ fontSize: lineFontSize(cinema, settings.textSize) }}>
 										{said ? renderTyped(said.page, pageText(said.page).length) : renderTyped(page, typed)}
 										{!done && !said && (
 											<Box component="span" sx={styles.caret}>
@@ -1886,7 +1903,8 @@ function renderTyped(page: StoryPage | null, typed: number) {
 				component="span"
 				sx={{
 					color: style.color ? style.color : undefined,
-					fontSize: style.size ? `${Number(style.size) / 26}rem` : undefined,
+					// Against the line's own size, where 26 is the game's normal text, so a sized word follows the reader's text size too.
+					fontSize: style.size ? `${Number(style.size) / 26}em` : undefined,
 					fontWeight: style.b !== undefined ? 700 : undefined,
 					fontStyle: style.i !== undefined ? "italic" : undefined
 				}}
