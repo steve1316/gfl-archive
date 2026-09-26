@@ -25,8 +25,10 @@ An unofficial archive for _Girls' Frontline_, the mobile game by MICA Team: T-Do
 
 <p>
   <img src="https://raw.githubusercontent.com/steve1316/gfl-archive-assets/main/readme/tdoll-index.webp" width="49%" alt="The T-Doll Index with its filters">
-  <img src="https://raw.githubusercontent.com/steve1316/gfl-archive-assets/main/readme/hoc-page.webp" width="49%" alt="A HOC page">
+  <img src="https://raw.githubusercontent.com/steve1316/gfl-archive-assets/main/readme/formation-simulator.webp" width="49%" alt="The Formation Simulator with an echelon placed">
 </p>
+
+![The story player in chapter 11](https://raw.githubusercontent.com/steve1316/gfl-archive-assets/main/readme/story-player.webp)
 
 ## Running locally
 
