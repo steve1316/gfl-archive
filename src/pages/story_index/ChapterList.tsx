@@ -12,6 +12,17 @@ import { pane } from "./styles";
 /** How far past the visible list a row's art starts loading, so it is usually in place before the row scrolls in. */
 const ART_MARGIN = "200px 0px";
 
+/**
+ * The toolbar mixin with each `minHeight` as `top`, so a heading on the phone list sticks just under the fixed navbar at every breakpoint.
+ * It follows archive-kit's `fillBelowNavbar`, which reads the same mixin for heights.
+ *
+ * @param toolbar The theme's toolbar mixin, `theme.mixins.toolbar`, or one of its nested breakpoint rules.
+ * @returns The style rules.
+ */
+function belowNavbar(toolbar: object): Record<string, unknown> {
+	return Object.fromEntries(Object.entries(toolbar).map(([key, value]) => (key === "minHeight" ? ["top", value] : [key, typeof value === "object" && value !== null ? belowNavbar(value) : value])));
+}
+
 const styles = {
 	// Pinned below the navbar with the page's own top padding above it and the same again below. The pane is only sticky on desktop
 	// widths, where the theme's toolbar is its `sm`-and-up height.
@@ -19,6 +30,7 @@ const styles = {
 		const navbar = (theme.mixins.toolbar[theme.breakpoints.up("sm")] as { minHeight: number }).minHeight;
 		return { position: "sticky", top: `calc(${navbar}px + ${theme.spacing(3)})`, maxHeight: `calc(100vh - ${navbar}px - ${theme.spacing(6)})`, overflowY: "auto" };
 	},
+	pageHeading: (theme: Theme) => belowNavbar(theme.mixins.toolbar),
 	heading: { position: "sticky", top: 0, zIndex: 2, display: "block", px: 1.75, pt: 1.5, pb: 0.75, bgcolor: "background.paper", color: "text.secondary" }
 } satisfies Record<string, SxProps<Theme>>;
 
@@ -95,7 +107,7 @@ const ChapterRow = memo(function ChapterRow({ chapter, showArt, current, onInten
 interface ChapterListProps {
 	/** The chapters under their headings, in display order. */
 	groups: ChapterGroup[];
-	/** The open chapter's id, or null when none is open. */
+	/** The chapter to mark and scroll into view: the open one, or on a phone the one last opened. Null marks none. */
 	selected: number | null;
 	/** Whether the list keeps to the viewport and scrolls on its own, as the desktop side pane does. */
 	sticky: boolean;
@@ -136,17 +148,18 @@ function ChapterList({ groups, selected, sticky, onIntent }: ChapterListProps) {
 		return () => observer.disconnect();
 	}, [groups, sticky]);
 
+	// The phone list centres the row it was left from.
 	useEffect(() => {
 		if (selected !== null) {
-			paneRef.current?.querySelector(`[data-chapter="${selected}"]`)?.scrollIntoView({ block: "nearest" });
+			paneRef.current?.querySelector(`[data-chapter="${selected}"]`)?.scrollIntoView({ block: sticky ? "nearest" : "center" });
 		}
-	}, [selected]);
+	}, [selected, sticky]);
 
 	return (
 		<Box ref={paneRef} component="nav" aria-label="Story chapters" sx={[pane, sticky && styles.sticky]}>
 			{groups.map((group) => (
 				<Box key={group.title} component="section">
-					<Typography component="h2" variant="overline" sx={styles.heading}>
+					<Typography component="h2" variant="overline" sx={[styles.heading, !sticky && styles.pageHeading]}>
 						{group.title}
 					</Typography>
 					{group.chapters.map((chapter) => (

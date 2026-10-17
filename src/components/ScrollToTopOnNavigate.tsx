@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useLayoutEffect } from "react";
 import type { ReactNode } from "react";
 import { useLocation } from "react-router-dom";
 
@@ -20,7 +20,8 @@ interface ScrollToTopOnNavigateProps {
 export default function ScrollToTopOnNavigate({ children }: ScrollToTopOnNavigateProps) {
 	const { pathname } = useLocation();
 
-	useEffect(() => {
+	// A layout effect runs before the new page's own effects, so a page that scrolls itself on arrival is not undone, and before paint.
+	useLayoutEffect(() => {
 		window.scrollTo(0, 0);
 	}, [pathname]);
 

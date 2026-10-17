@@ -1,9 +1,9 @@
 import { memo } from "react";
-import type { ReactNode } from "react";
 import { Link as RouterLink } from "react-router-dom";
 
-import { Box, Skeleton, Typography, alpha, styled } from "@mui/material";
+import { Box, IconButton, Skeleton, Typography, alpha, styled } from "@mui/material";
 import type { SxProps, Theme } from "@mui/material";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 
 import LoadError from "../../components/LoadError";
 import { storyBackgroundUrl } from "../../lib/assets";
@@ -38,7 +38,7 @@ const styles = {
 		},
 		"& > *": { position: "relative" }
 	},
-	back: { position: "absolute", top: 8, left: 8 },
+	back: { position: "absolute", top: 8, left: 8, bgcolor: (theme: Theme) => alpha(theme.palette.background.paper, 0.7), "&:hover": { bgcolor: "background.paper" } },
 	group: { color: "text.secondary" },
 	label: { color: "secondary.main", fontSize: 26, fontWeight: 800, mr: 1.25 },
 	name: { fontSize: 24, fontWeight: 700, textShadow: (theme: Theme) => `0 2px 10px ${theme.palette.common.black}` },
@@ -75,23 +75,27 @@ interface ChapterPanelProps {
 	failed: boolean;
 	/** Tries the load again. */
 	onRetry: () => void;
-	/** A control drawn over the banner's corner, such as the phone layout's way back to the list. */
-	back?: ReactNode;
+	/** Where the back button over the banner's corner leads, as the phone layout's way back to the list. Left out, there is no button. */
+	backTo?: string;
 }
 
 /**
  * One chapter: a banner of its cover with its label and name, then its missions, each numbered and linking to the player.
  *
- * @param props The chapter, its group, its missions and their load state, and an optional back control.
+ * @param props The chapter, its group, its missions and their load state, and an optional back link.
  * @returns The panel.
  */
-function ChapterPanel({ summary, group, chapter, failed, onRetry, back }: ChapterPanelProps) {
+function ChapterPanel({ summary, group, chapter, failed, onRetry, backTo }: ChapterPanelProps) {
 	const count = `${summary.missions} ${summary.missions === 1 ? "mission" : "missions"}`;
 
 	return (
 		<Box component="section" aria-labelledby="story-chapter-title" sx={pane}>
 			<Box sx={styles.banner} style={{ backgroundImage: `url("${storyBackgroundUrl(summary.cover)}")` }}>
-				{back && <Box sx={styles.back}>{back}</Box>}
+				{backTo && (
+					<IconButton component={RouterLink} to={backTo} aria-label="All chapters" sx={styles.back}>
+						<ArrowBackIcon />
+					</IconButton>
+				)}
 				<Typography component="span" variant="overline" sx={styles.group}>
 					{group}
 				</Typography>
