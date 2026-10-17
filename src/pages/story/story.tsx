@@ -39,6 +39,7 @@ import {
 } from "archive-kit";
 import type { StoryChoice, StoryControl, StoryCornerProps, StoryCurrentLine, StoryLine } from "archive-kit";
 
+import DotWipe from "../../components/DotWipe";
 import LoadError from "../../components/LoadError";
 import StoryPanelFrame, { AMBER } from "../../components/StoryPanelFrame";
 import ScrollToTop from "../../components/ScrollToTop";
@@ -230,6 +231,14 @@ const FADE_OUT_MS = 1600;
 
 /** How long the colour takes to lift off the next beat's picture, in milliseconds, when the script gives no `CGDelay`. */
 const FADE_IN_MS = 800;
+
+/** A fade of the whole stage to a colour: a plain wash, or the game's dotted wipe. */
+interface ScreenFade {
+	/** The colour the stage fades to. */
+	color: string;
+	/** Whether the fade is the dotted wipe rather than a plain wash. */
+	dots: boolean;
+}
 
 /** The ops that lift a fade, which the next beat opens with. */
 const SCREEN_OFF_OPS = new Set(["blackscreenOff", "whitescreenOff", "fadePointOff"]);
@@ -808,14 +817,14 @@ function useSideMargin(ref: RefObject<HTMLElement | null>): number {
  * The colour a beat fades the whole stage out to once its lines are read, if it asks for one.
  *
  * @param beat The beat, or null.
- * @returns The colour, or null when the beat fades nothing out.
+ * @returns The fade, or null when the beat fades nothing out.
  */
-function fadeOutAt(beat: StoryBeat | null): string | null {
+function fadeOutAt(beat: StoryBeat | null): ScreenFade | null {
 	const op = beat?.ops.filter((entry) => SCREEN_ON_OPS.has(entry.type)).at(-1);
 	if (op === undefined) {
 		return null;
 	}
-	return op.type === "whitescreenOn" ? "#ffffff" : "#000000";
+	return { color: op.type === "whitescreenOn" ? "#ffffff" : "#000000", dots: op.type === "fadePointOn" };
 }
 
 /**
@@ -823,9 +832,9 @@ function fadeOutAt(beat: StoryBeat | null): string | null {
  *
  * @param beats The scene's beats.
  * @param index Index of the current beat.
- * @returns The colour, or null when this beat does not fade in from one.
+ * @returns The fade being lifted, or null when this beat does not fade in from one.
  */
-function fadeInAt(beats: StoryBeat[], index: number): string | null {
+function fadeInAt(beats: StoryBeat[], index: number): ScreenFade | null {
 	const lifts = beats[index]?.ops.some((entry) => SCREEN_OFF_OPS.has(entry.type));
 	return lifts && index > 0 ? fadeOutAt(beats[index - 1] ?? null) : null;
 }
@@ -1690,8 +1699,18 @@ export default function Story() {
 
 				<Box sx={[styles.wash, { bgcolor: "#0a1020", opacity: stage.night ? 0.42 : 0 }]} />
 				<Box sx={[styles.wash, { bgcolor: "#000", opacity: stage.darkened ? 0.55 : 0 }]} />
-				{fadeInFrom && <Box key={`fadein-${beatIndex}`} sx={[styles.fadeIn, { bgcolor: fadeInFrom, animationDuration: `${fadeInMs}ms` }]} />}
-				{fadeOutTo && <Box key={`fadeout-${beatIndex}`} sx={[styles.fadeOut, { bgcolor: fadeOutTo }]} />}
+				{fadeInFrom &&
+					(fadeInFrom.dots ? (
+						<DotWipe key={`fadein-${beatIndex}`} color={fadeInFrom.color} direction="uncover" durationMs={fadeInMs} />
+					) : (
+						<Box key={`fadein-${beatIndex}`} sx={[styles.fadeIn, { bgcolor: fadeInFrom.color, animationDuration: `${fadeInMs}ms` }]} />
+					))}
+				{fadeOutTo &&
+					(fadeOutTo.dots ? (
+						<DotWipe key={`fadeout-${beatIndex}`} color={fadeOutTo.color} direction="cover" durationMs={FADE_OUT_MS} />
+					) : (
+						<Box key={`fadeout-${beatIndex}`} sx={[styles.fadeOut, { bgcolor: fadeOutTo.color }]} />
+					))}
 				{fade && <Box key={`fade-${beatIndex}`} sx={[styles.fade, { bgcolor: "#ffffff" }]} />}
 			</>
 		),
