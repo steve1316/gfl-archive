@@ -17,6 +17,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { missionNumber, pickCover, repairMojibake } from "./chapter_meta.mjs";
 import { storyTracks } from "./music_titles.mjs";
 import { parseScript } from "./parse_avg.mjs";
 
@@ -35,6 +36,12 @@ const BACKGROUND_TABLE = "profiles.txt";
 
 /** Where each scene's beats are written, one file each. */
 const SCENE_DIR = path.join(OUT_DIR, "scenes");
+
+/** The curated cover for each chapter, by chapter id. A chapter missing here falls back to its own art. */
+const COVERS_FILE = path.join("tools", "story", "covers.json");
+
+/** The published asset list, read to tell which backgrounds a cover can use. */
+const MANIFEST_FILE = "assets-manifest.json";
 
 /**
  * Turn a script name into a filename.
@@ -169,6 +176,9 @@ export function buildStory(upstream, dir) {
 	const backgrounds = readBackgrounds(dir);
 	const playback = upstream.stc("story_playback");
 	const missions = upstream.stc("story_util");
+	const covers = JSON.parse(fs.readFileSync(COVERS_FILE, "utf8"));
+	const published = new Set(JSON.parse(fs.readFileSync(MANIFEST_FILE, "utf8")).story?.backgrounds ?? []);
+	const coverWarnings = [];
 
 	// Which chapter owns each campaign id, so a mission can find its chapter.
 	const chapterOf = new Map();
@@ -182,7 +192,7 @@ export function buildStory(upstream, dir) {
 	// its first mission and ordered after the game's chapters.
 	const battleNames = new Map(upstream.stc("mission").map((row) => [row.id, upstream.t(row.name).split("|")[0]]));
 	const campaigns = [...new Set(missions.filter((row) => !chapterOf.has(String(row.campaign))).map((row) => row.campaign))].sort((left, right) => right - left);
-	const chapterRows = playback.map((row) => ({ id: row.id, label: upstream.t(row.chapter), name: upstream.t(row.name), type: row.type, order: row.order }));
+	const chapterRows = playback.map((row) => ({ id: row.id, label: repairMojibake(upstream.t(row.chapter)), name: repairMojibake(upstream.t(row.name)), type: row.type, order: row.order }));
 	let nextOrder = Math.max(0, ...chapterRows.map((row) => row.order)) + 1;
 	for (const campaign of campaigns) {
 		const id = EVENT_CHAPTER_BASE - campaign;
@@ -236,8 +246,9 @@ export function buildStory(upstream, dir) {
 			}
 			listed.push({
 				id: mission.id,
-				title: upstream.t(mission.title) || battleNames.get(Number(mission.mission_id)) || `Mission ${mission.id}`,
-				description: upstream.t(mission.description),
+				number: missionNumber(row.type, listed.length, present[0]),
+				title: repairMojibake(upstream.t(mission.title) || battleNames.get(Number(mission.mission_id)) || `Mission ${mission.id}`),
+				description: repairMojibake(upstream.t(mission.description)),
 				bgm: mission.bgm || undefined,
 				background: mission.background_code || undefined,
 				scripts: present
@@ -246,7 +257,12 @@ export function buildStory(upstream, dir) {
 		if (listed.length === 0) {
 			continue;
 		}
-		index.chapters.push({ id: row.id, label: row.label, name: row.name, type: row.type, order: row.order, missions: listed.length });
+		// Every background the chapter's scenes show, in play order, for the cover to fall back on.
+		const shown = listed.flatMap((mission) =>
+			mission.scripts.flatMap((name) => scenes.get(name).beats.flatMap((beat) => beat.ops.filter((op) => op.type === "background").map((op) => op.value ?? "")))
+		);
+		const cover = pickCover(covers[row.id], shown, published, (message) => coverWarnings.push(`${row.id} ${row.name}: ${message}`));
+		index.chapters.push({ id: row.id, label: row.label, name: row.name, type: row.type, order: row.order, missions: listed.length, cover });
 		chapters.set(row.id, { id: row.id, missions: listed });
 	}
 
@@ -261,6 +277,7 @@ export function buildStory(upstream, dir) {
 			beats: beatCount,
 			unknownTags,
 			missingScripts,
+			coverWarnings,
 			// Every track the scenes play, for the importer's title step.
 			tracks: storyTracks(scenes)
 		}

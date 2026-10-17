@@ -200,6 +200,9 @@ async function main() {
 	for (const name of new Set(story.missingScripts)) {
 		ctx.warnings.push(`story script ${name} is listed by the game's index but is not in the upstream data`);
 	}
+	for (const message of story.coverWarnings) {
+		ctx.warnings.push(`story cover for chapter ${message}`);
+	}
 	for (const [tag, count] of story.unknownTags) {
 		ctx.warnings.push(`story tag <${tag}> is not recognised by the parser, seen ${count} time${count === 1 ? "" : "s"}`);
 	}

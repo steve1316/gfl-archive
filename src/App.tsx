@@ -153,7 +153,7 @@ export default function App() {
 						}
 					/>
 					<Route
-						path="/story"
+						path="/story/:chapter?"
 						element={
 							<Suspense>
 								<StoryIndex />

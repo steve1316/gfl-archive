@@ -214,9 +214,6 @@ const PHONE_MAIN_SX = { [`@media ${MOBILE_LANDSCAPE_QUERY}`]: { height: "100dvh"
 /** The shared reader in this archive's colours: the cyan the story player already speaks in, and its amber for a picked choice. */
 const READER_SX = (theme: Theme) => ({ "--reader-accent": theme.palette.secondary.main, "--reader-pick": AMBER });
 
-/** The end card's way back: every chapter, since a scene has no list of its own to return to. */
-const BACK_TO_CHAPTERS = { label: "Back to all chapters", to: "/story" };
-
 /** Carried on every link into a scene from inside the player, telling it to open at the start rather than resume. */
 const OPEN_AT_START = { restart: true };
 
@@ -1188,11 +1185,13 @@ export default function Story() {
 		return title === null ? null : { title };
 	}, [stage.bgm]);
 	const corner = useMemo<StoryCornerProps>(() => ({ progress, track: cornerTrack }), [progress, cornerTrack]);
-	// The end card's title and way on. Next opens the mission's next scene at its start, as the scenes menu does.
+	// The end card's title and ways on. Next opens the mission's next scene at its start, as the scenes menu does. Back returns to this
+	// scene's chapter in the story index.
 	const ending = useMemo(
 		() => ({
 			title: mission ? `${sceneName} ${mission.title}` : sceneName,
-			next: nextScene ? { label: "Next scene", to: `/story/${chapterId}/${encodeURIComponent(nextScene)}`, state: OPEN_AT_START } : undefined
+			next: nextScene ? { label: "Next scene", to: `/story/${chapterId}/${encodeURIComponent(nextScene)}`, state: OPEN_AT_START } : undefined,
+			back: { label: "Back to all chapters", to: `/story/${chapterId}` }
 		}),
 		[mission, sceneName, nextScene, chapterId]
 	);
@@ -1756,7 +1755,7 @@ export default function Story() {
 					lines={readLines}
 					current={phoneCurrent}
 					choices={phoneChoices}
-					end={ended ? <StoryEndCard variant="inline" title={ending.title} next={ending.next} back={BACK_TO_CHAPTERS} onRestart={restart} color="secondary" /> : null}
+					end={ended ? <StoryEndCard variant="inline" title={ending.title} next={ending.next} back={ending.back} onRestart={restart} color="secondary" /> : null}
 					onAdvance={advance}
 					onInteract={interact}
 					logOpen={backlogOpen}
@@ -1803,7 +1802,7 @@ export default function Story() {
 								))}
 							</Box>
 						)}
-						{ended && <StoryEndCard variant="stage" title={ending.title} next={ending.next} back={BACK_TO_CHAPTERS} onRestart={restart} color="secondary" />}
+						{ended && <StoryEndCard variant="stage" title={ending.title} next={ending.next} back={ending.back} onRestart={restart} color="secondary" />}
 					</Box>
 
 					<Box sx={[styles.stageControls, cinema ? styles.controlsCinema : {}, cinema ? { width: sideMargin } : {}]} onClick={stopBubbling}>
@@ -1889,7 +1888,7 @@ export default function Story() {
 						<Typography variant="subtitle1" sx={{ fontWeight: 700, flex: 1 }}>
 							Scenes
 						</Typography>
-						<Button size="small" component={RouterLink} to="/story" onClick={closeMenu}>
+						<Button size="small" component={RouterLink} to={`/story/${chapterId}`} onClick={closeMenu}>
 							All chapters
 						</Button>
 					</Stack>
