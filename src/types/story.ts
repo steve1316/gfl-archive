@@ -66,6 +66,8 @@ export interface StoryScene {
 export interface StoryMission {
 	/** The game's `story_util` row id. */
 	id: number;
+	/** The mission's number as the index shows it: the scene code for the main story, a running number otherwise. */
+	number: string;
 	/** The mission's name, such as the operation it covers. */
 	title: string;
 	/** The longer blurb the game shows beside the title. */
@@ -100,6 +102,8 @@ export interface StoryChapterSummary {
 	order: number;
 	/** How many missions the chapter holds, so the index can say so without fetching it. */
 	missions: number;
+	/** The background drawn behind the chapter's row and banner, as a published scene code. */
+	cover: string;
 }
 
 /** The story index: every chapter, without their missions or scenes. */
