@@ -58,6 +58,17 @@ test("a colon inside the dialogue does not end the head early", () => {
 	assert.deepEqual(beat.pages[0].spans, [{ text: "the time is 12:30" }]);
 });
 
+test("a full-width colon ends the head like an ASCII one", () => {
+	const beat = parseBeat("()||<BIN>9</BIN>：...+Five days after the withdrawal.");
+	assert.equal(beat.pages.length, 2);
+	assert.deepEqual(beat.pages[1].spans, [{ text: "Five days after the withdrawal." }]);
+});
+
+test("a full-width colon inside the dialogue does not end the head early", () => {
+	const beat = parseBeat("Alpha(0)||:Note：this stays in the text");
+	assert.deepEqual(beat.pages[0].spans, [{ text: "Note：this stays in the text" }]);
+});
+
 test("a line with no colon still parses, with no text", () => {
 	const beat = parseBeat("Alpha(0)||<BGM>cue_name</BGM>");
 	assert.deepEqual(beat.pages, []);
