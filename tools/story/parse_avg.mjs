@@ -127,7 +127,7 @@ const PAGE_SEPARATOR = "+";
 // Line splitting
 
 /**
- * Split a line into its stage head and its spoken text at the first colon outside a tag.
+ * Split a line into its stage head and its spoken text at the first colon outside a tag, whether the script writes it full-width (`：`) or plain.
  *
  * Scanning rather than using `indexOf` matters because both a tag value and the dialogue itself can contain a colon, and only the
  * first one at the top level ends the head.
@@ -143,7 +143,7 @@ export function splitBeat(line) {
 			depth++;
 		} else if (character === ">") {
 			depth = Math.max(0, depth - 1);
-		} else if (character === ":" && depth === 0) {
+		} else if ((character === ":" || character === "：") && depth === 0) {
 			return { head: line.slice(0, index), text: line.slice(index + 1) };
 		}
 	}

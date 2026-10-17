@@ -945,6 +945,7 @@ def story_expression_table(bundle_name, cache_dir):
         if obj.type.name == "GameObject":
             objects[obj.path_id] = obj.read().m_Name
     table = {}
+    claimed = {}
     for obj in env.objects:
         if obj.type.name != "MonoBehaviour":
             continue
@@ -955,10 +956,19 @@ def story_expression_table(bundle_name, cache_dir):
         order = tree.get("orderScale") or []
         if not order:
             continue
-        key = (tree.get("imageName") or objects.get((tree.get("m_GameObject") or {}).get("m_PathID"), "") or "").lower()
         names = [entry.get("picname", "") for entry in order if entry.get("picname")]
-        if key and names and len(names) > len(table.get(key, [])):
-            table[key] = names
+        if not names:
+            continue
+        # The object's own name is what the script calls it, so it wins. `imageName` is often a stale copy from another prefab
+        # (`NytoIsomer` carries `MP5Mod`), so it only fills a name no object claims.
+        owner = objects.get((tree.get("m_GameObject") or {}).get("m_PathID"), "").lower()
+        if owner and len(names) > len(table.get(owner, [])):
+            table[owner] = names
+        image = (tree.get("imageName") or "").lower()
+        if image and image != owner:
+            claimed.setdefault(image, names)
+    for image, names in claimed.items():
+        table.setdefault(image, names)
     return table
 
 
@@ -1009,6 +1019,27 @@ def story_texture_by_shape(textures, prefab):
             if best is None or index < best[0]:
                 best = (index, name)
     return best[1] if best else None
+
+
+def story_expression_by_shape(textures, prefab, index):
+    """Find a character's numbered expression when no table names it and no texture is spelled exactly as the script writes it.
+
+    Artists spell the same name several ways: `Nyto_Isomer_8` for the prefab `NytoIsomer`, or `pic_Saki_3` for `NPC-Saki`. Comparing with
+    punctuation stripped and an optional `pic` prefix finds those, and only a texture ending in exactly the index qualifies, so a
+    variant such as `Saki_R_2` is never mistaken for expression 2.
+
+    Args:
+        textures: The bundle's textures, keyed by their real name.
+        prefab: The prefab name a script refers to.
+        index: The expression index the script asks for.
+
+    Returns:
+        The matching texture name, or None when nothing fits.
+    """
+    flatten = lambda name: re.sub(r"[^a-z0-9]", "", name.lower())
+    bare = prefab.replace("NPC-", "").replace("NPC_", "")
+    wanted = {f"{flatten(base)}{index}" for base in (prefab, bare, f"pic{prefab}", f"pic{bare}") if flatten(base)}
+    return next((name for name in textures if flatten(name) in wanted), None)
 
 
 def extract_story_sprite_items(items, cache_dir, staging, loader=unity_load):
@@ -1106,6 +1137,9 @@ def extract_story_sprite_items(items, cache_dir, staging, loader=unity_load):
                 order = expressions.get(prefab.lower(), [])
                 names = ([order[index]] if len(order) > index else []) + [f"pic_{prefab}_{index}", f"{prefab}_{index}"]
                 image = next((folded[name.lower()] for name in names if name.lower() in folded), None)
+                if image is None:
+                    shaped = story_expression_by_shape(textures, prefab, index)
+                    image = textures[shaped] if shaped else None
                 if image is None:
                     continue
                 try:

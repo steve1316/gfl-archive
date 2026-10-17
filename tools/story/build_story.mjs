@@ -138,6 +138,25 @@ function parts(value) {
 		.filter((part) => part !== "");
 }
 
+/** Columns of a mission row that name scripts, in the order the game plays them: before the fight, during, after the first clear, after it. */
+const SCRIPT_COLUMNS = ["start", "scripts", "mid", "first", "end", "fail"];
+
+/** The first chapter id given to a campaign no playback chapter owns, so it cannot collide with the game's own. */
+const EVENT_CHAPTER_BASE = 1000;
+
+/**
+ * Every script a mission row names, in playing order and each once.
+ *
+ * The `scripts` column alone leaves out the scenes before and after the fight, which the game keeps in separate columns.
+ *
+ * @param {object} mission A `story_util` row.
+ * @returns {string[]} The script names.
+ */
+function missionScripts(mission) {
+	const names = SCRIPT_COLUMNS.flatMap((column) => parts(mission[column]));
+	return [...new Set(names)];
+}
+
 /**
  * Build the story index and every chapter's scenes.
  *
@@ -159,15 +178,22 @@ export function buildStory(upstream, dir) {
 		}
 	}
 
-	const byChapter = new Map(playback.map((row) => [row.id, []]));
-	const uncatalogued = new Set();
+	// The game lists no chapter for its event campaigns, though their missions carry scripts. Each gets a chapter of its own, named for
+	// its first mission and ordered after the game's chapters.
+	const battleNames = new Map(upstream.stc("mission").map((row) => [row.id, upstream.t(row.name).split("|")[0]]));
+	const campaigns = [...new Set(missions.filter((row) => !chapterOf.has(String(row.campaign))).map((row) => row.campaign))].sort((left, right) => right - left);
+	const chapterRows = playback.map((row) => ({ id: row.id, label: upstream.t(row.chapter), name: upstream.t(row.name), type: row.type, order: row.order }));
+	let nextOrder = Math.max(0, ...chapterRows.map((row) => row.order)) + 1;
+	for (const campaign of campaigns) {
+		const id = EVENT_CHAPTER_BASE - campaign;
+		chapterOf.set(String(campaign), id);
+		const first = missions.find((row) => row.campaign === campaign);
+		chapterRows.push({ id, label: "Event", name: battleNames.get(Number(first?.mission_id)) || `Event ${-campaign}`, type: 3, order: nextOrder++ });
+	}
+
+	const byChapter = new Map(chapterRows.map((row) => [row.id, []]));
 	for (const row of missions) {
-		const chapter = chapterOf.get(String(row.campaign));
-		if (chapter === undefined) {
-			uncatalogued.add(row.campaign);
-			continue;
-		}
-		byChapter.get(chapter).push(row);
+		byChapter.get(chapterOf.get(String(row.campaign)))?.push(row);
 	}
 
 	const unknownTags = new Map();
@@ -177,14 +203,14 @@ export function buildStory(upstream, dir) {
 	const scenes = new Map();
 	let beatCount = 0;
 
-	for (const row of playback) {
+	for (const row of chapterRows) {
 		const rows = byChapter.get(row.id);
 		if (rows.length === 0) {
 			continue;
 		}
 		const listed = [];
 		for (const mission of rows) {
-			const names = parts(mission.scripts);
+			const names = missionScripts(mission);
 			const present = [];
 			for (const name of names) {
 				const file = scripts.get(name.toLowerCase());
@@ -210,7 +236,7 @@ export function buildStory(upstream, dir) {
 			}
 			listed.push({
 				id: mission.id,
-				title: upstream.t(mission.title),
+				title: upstream.t(mission.title) || battleNames.get(Number(mission.mission_id)) || `Mission ${mission.id}`,
 				description: upstream.t(mission.description),
 				bgm: mission.bgm || undefined,
 				background: mission.background_code || undefined,
@@ -220,7 +246,7 @@ export function buildStory(upstream, dir) {
 		if (listed.length === 0) {
 			continue;
 		}
-		index.chapters.push({ id: row.id, label: upstream.t(row.chapter), name: upstream.t(row.name), type: row.type, order: row.order, missions: listed.length });
+		index.chapters.push({ id: row.id, label: row.label, name: row.name, type: row.type, order: row.order, missions: listed.length });
 		chapters.set(row.id, { id: row.id, missions: listed });
 	}
 
@@ -235,7 +261,6 @@ export function buildStory(upstream, dir) {
 			beats: beatCount,
 			unknownTags,
 			missingScripts,
-			uncatalogued: [...uncatalogued],
 			// Every track the scenes play, for the importer's title step.
 			tracks: storyTracks(scenes)
 		}

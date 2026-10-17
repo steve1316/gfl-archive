@@ -39,6 +39,7 @@ import {
 } from "archive-kit";
 import type { StoryChoice, StoryControl, StoryCornerProps, StoryCurrentLine, StoryLine } from "archive-kit";
 
+import DotWipe from "../../components/DotWipe";
 import LoadError from "../../components/LoadError";
 import StoryPanelFrame, { AMBER } from "../../components/StoryPanelFrame";
 import ScrollToTop from "../../components/ScrollToTop";
@@ -225,6 +226,29 @@ const PRELOAD_LANES = 4;
 /** How long a screen fade takes to wash in or out, in milliseconds. */
 const WASH_MS = 450;
 
+/** How long the whole stage takes to fade out to a colour once a beat's lines are read, in milliseconds. */
+const FADE_OUT_MS = 1600;
+
+/** How long the colour takes to lift off the next beat's picture, in milliseconds, when the script gives no `CGDelay`. */
+const FADE_IN_MS = 800;
+
+/** A fade of the whole stage to a colour: a plain wash, or the game's dotted wipe. */
+interface ScreenFade {
+	/** The colour the stage fades to. */
+	color: string;
+	/** Whether the fade is the dotted wipe rather than a plain wash. */
+	dots: boolean;
+}
+
+/** The ops that lift a fade, which the next beat opens with. */
+const SCREEN_OFF_OPS = new Set(["blackscreenOff", "whitescreenOff", "fadePointOff"]);
+
+/** The ops that fade the screen out to a colour, which play once the beat's lines are done. */
+const SCREEN_ON_OPS = new Set(["blackscreenOn", "whitescreenOn", "fadePointOn"]);
+
+/** The longest fade a script's `CGDelay` can ask for, in seconds. The scripts top out at 3. */
+const MAX_WASH_S = 5;
+
 /** How far a shake of range 1 moves the stage, as a share of its width. Scripts ask for ranges of about 5 to 8. */
 const SHAKE_UNIT = 0.0015;
 
@@ -273,7 +297,7 @@ const styles = {
 		overflow: "hidden",
 		// What a blanked background shows through as. The scene's own picture covers it whenever the scene is not blanked.
 		bgcolor: "#000000",
-		transition: `background-color ${WASH_MS}ms ease`,
+		transition: "background-color var(--wash, 450ms) ease",
 		cursor: "pointer",
 		userSelect: "none",
 		// Queried by the characters, so a comms window can be sized against the stage rather than against its own slot.
@@ -284,9 +308,9 @@ const styles = {
 		"@keyframes storyShake1": STORY_SHAKE_FRAMES
 	},
 	// The scene's picture, on its own layer so a beat that blanks the background fades it out and leaves the cast against the bare stage.
-	scene: { position: "absolute", inset: 0, transition: `opacity ${WASH_MS}ms ease` },
+	scene: { position: "absolute", inset: 0, transition: "opacity var(--wash, 450ms) ease" },
 	// A new picture fades in over the stage's black. The scene is keyed on its picture, so every change plays this, as AK's stage does.
-	sceneIn: { animation: `storySceneIn ${WASH_MS}ms ease-out`, "@keyframes storySceneIn": { from: { opacity: 0 }, to: { opacity: 1 } } },
+	sceneIn: { animation: "storySceneIn var(--wash, 450ms) ease-out", "@keyframes storySceneIn": { from: { opacity: 0 }, to: { opacity: 1 } } },
 	sprites: { position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" },
 	// One slot per character on stage, spread evenly across the full width: one sits centred, two at a third and two thirds.
 	// Each is a square the height of the stage, dropped so the character is framed from the waist up, as the game draws them.
@@ -426,9 +450,19 @@ const styles = {
 		[STACKED]: { width: "86%" }
 	},
 	// The tints sit over the scene but under the dialogue, so a line spoken over a darkened scene is still readable.
-	wash: { position: "absolute", inset: 0, pointerEvents: "none", transition: `opacity ${WASH_MS}ms ease` },
+	wash: { position: "absolute", inset: 0, pointerEvents: "none", transition: "opacity var(--wash, 450ms) ease" },
 	// A beat's own transition, played once as it arrives and then gone, rather than a wash left sitting over the scene.
 	fade: { position: "absolute", inset: 0, pointerEvents: "none", animation: `storyFade ${WASH_MS}ms ease-out both`, "@keyframes storyFade": { from: { opacity: 1 }, to: { opacity: 0 } } },
+	// The colour the stage was faded out to, lifting off the next beat's picture.
+	fadeIn: { position: "absolute", inset: 0, pointerEvents: "none", animation: "storyFadeIn 800ms ease-in-out both", "@keyframes storyFadeIn": { from: { opacity: 1 }, to: { opacity: 0 } } },
+	// The stage going to a colour once a beat's lines are read. It covers the cast too, unlike the blank, which leaves them on the bare colour.
+	fadeOut: {
+		position: "absolute",
+		inset: 0,
+		pointerEvents: "none",
+		animation: `storyFadeOut ${FADE_OUT_MS}ms ease-in-out both`,
+		"@keyframes storyFadeOut": { from: { opacity: 0 }, to: { opacity: 1 } }
+	},
 	// The game keeps its controls in the top left of the scene itself, as small square plates rather than a toolbar. Below the
 	// breakpoint they become a row under the scene, where a thumb reaches them and they are not eating the picture.
 	stageControls: {
@@ -780,9 +814,52 @@ function useSideMargin(ref: RefObject<HTMLElement | null>): number {
 }
 
 /**
+ * The colour a beat fades the whole stage out to once its lines are read, if it asks for one.
+ *
+ * @param beat The beat, or null.
+ * @returns The fade, or null when the beat fades nothing out.
+ */
+function fadeOutAt(beat: StoryBeat | null): ScreenFade | null {
+	const op = beat?.ops.filter((entry) => SCREEN_ON_OPS.has(entry.type)).at(-1);
+	if (op === undefined) {
+		return null;
+	}
+	return { color: op.type === "whitescreenOn" ? "#ffffff" : "#000000", dots: op.type === "fadePointOn" };
+}
+
+/**
+ * The colour left over from the last beat's fade out, when this beat lifts it.
+ *
+ * @param beats The scene's beats.
+ * @param index Index of the current beat.
+ * @returns The fade being lifted, or null when this beat does not fade in from one.
+ */
+function fadeInAt(beats: StoryBeat[], index: number): ScreenFade | null {
+	const lifts = beats[index]?.ops.some((entry) => SCREEN_OFF_OPS.has(entry.type));
+	return lifts && index > 0 ? fadeOutAt(beats[index - 1] ?? null) : null;
+}
+
+/**
+ * How long the beat's picture changes take, in milliseconds.
+ *
+ * `CGDelay` carries seconds and rides on the same beat as the background or screen change it times. It applies to that beat only, so
+ * the next change goes back to the default.
+ *
+ * @param beat The beat, or null.
+ * @returns The fade length in milliseconds.
+ */
+function washMsAt(beat: StoryBeat | null): number {
+	const seconds = Number(beat?.ops.find((entry) => entry.type === "cgDelay")?.value);
+	return Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, MAX_WASH_S) * 1000 : WASH_MS;
+}
+
+/**
  * The stage as it stands at a beat, folded from the ops of every beat up to and including it.
  *
  * Background and music persist until something changes them, so they cannot be read off the current beat alone.
+ *
+ * The numbered screen pairs are a fade out and a fade in. A beat that writes `On` fades out once its lines are spoken, which the fade-out
+ * layer draws over the whole stage, so the current beat's own `On` ops are left out here. Its `Off` ops, and every earlier beat's ops, apply.
  *
  * @param beats The scene's beats.
  * @param upTo Index of the current beat.
@@ -792,6 +869,9 @@ function stageAt(beats: StoryBeat[], upTo: number): Stage {
 	const stage: Stage = { background: null, bgm: null, darkened: false, night: false, blankedTo: null };
 	for (let index = 0; index <= upTo && index < beats.length; index++) {
 		for (const op of beats[index]?.ops ?? []) {
+			if (index === upTo && SCREEN_ON_OPS.has(op.type)) {
+				continue;
+			}
 			switch (op.type) {
 				case "background":
 					if (op.value) {
@@ -1044,6 +1124,8 @@ export default function Story() {
 	const full = page ? pageText(page) : "";
 	const typed = typing.text === full ? typing.count : 0;
 	const done = typed >= full.length;
+	// Every page of the beat has been read, which is when a screen fade it writes plays.
+	const settled = done && (beat === null || pageIndex >= beat.pages.length - 1);
 	const atLast = beatIndex >= beats.length - 1 && (beat === null || pageIndex >= beat.pages.length - 1);
 	// The reader has read everything the timeline holds and a choice is waiting, so the menu takes the dialogue box's place.
 	const choosing = timeline.pending !== null && atLast && done;
@@ -1053,9 +1135,13 @@ export default function Story() {
 
 	const stage = useMemo(() => stageAt(beats, beatIndex), [beats, beatIndex]);
 	const shake = useMemo(() => (steppedBack ? null : shakeAt(beat)), [beat, steppedBack]);
+	const washMs = useMemo(() => washMsAt(beat), [beat]);
 	// While a choice waits, the dialogue box keeps the line said before it rather than the choice's own, often empty, page.
 	const said = useMemo(() => (pending ? lastSaid(beats, beatIndex, pageIndex) : null), [pending, beats, beatIndex, pageIndex]);
 	const fade = !steppedBack && fadeAt(beat);
+	const fadeOutTo = !steppedBack && settled ? fadeOutAt(beat) : null;
+	const fadeInMs = beat?.ops.some((entry) => entry.type === "cgDelay") ? washMs : FADE_IN_MS;
+	const fadeInFrom = useMemo(() => (steppedBack ? null : fadeInAt(beats, beatIndex)), [beats, beatIndex, steppedBack]);
 	// Resolved once a beat. Each sprite costs several scans of the published-art list, and the page re-renders on every typed character.
 	const cast = useMemo(
 		() =>
@@ -1613,10 +1699,22 @@ export default function Story() {
 
 				<Box sx={[styles.wash, { bgcolor: "#0a1020", opacity: stage.night ? 0.42 : 0 }]} />
 				<Box sx={[styles.wash, { bgcolor: "#000", opacity: stage.darkened ? 0.55 : 0 }]} />
+				{fadeInFrom &&
+					(fadeInFrom.dots ? (
+						<DotWipe key={`fadein-${beatIndex}`} color={fadeInFrom.color} direction="uncover" durationMs={fadeInMs} />
+					) : (
+						<Box key={`fadein-${beatIndex}`} sx={[styles.fadeIn, { bgcolor: fadeInFrom.color, animationDuration: `${fadeInMs}ms` }]} />
+					))}
+				{fadeOutTo &&
+					(fadeOutTo.dots ? (
+						<DotWipe key={`fadeout-${beatIndex}`} color={fadeOutTo.color} direction="cover" durationMs={FADE_OUT_MS} />
+					) : (
+						<Box key={`fadeout-${beatIndex}`} sx={[styles.fadeOut, { bgcolor: fadeOutTo.color }]} />
+					))}
 				{fade && <Box key={`fade-${beatIndex}`} sx={[styles.fade, { bgcolor: "#ffffff" }]} />}
 			</>
 		),
-		[backing, stage.blankedTo, stage.night, stage.darkened, cast, fade, beatIndex]
+		[backing, stage.blankedTo, stage.night, stage.darkened, cast, fade, fadeOutTo, fadeInFrom, fadeInMs, beatIndex]
 	);
 
 	// The plates in the reader's own form. A tap on the scene or the box reads on, so there is no Next, and fullscreen comes from the reader.
@@ -1650,7 +1748,9 @@ export default function Story() {
 				</Box>
 			) : phone ? (
 				<MobileStoryReader
-					scene={<Box sx={[styles.stage, { bgcolor: stage.blankedTo === "white" ? "#ffffff" : "#000000" }, shake ? shakeSx(shake, beatIndex) : {}]}>{stageLayers}</Box>}
+					scene={
+						<Box sx={[styles.stage, { bgcolor: stage.blankedTo === "white" ? "#ffffff" : "#000000", "--wash": `${washMs}ms` }, shake ? shakeSx(shake, beatIndex) : {}]}>{stageLayers}</Box>
+					}
 					corner={corner}
 					controls={phoneControls}
 					lines={readLines}
@@ -1670,7 +1770,14 @@ export default function Story() {
 				/>
 			) : (
 				<Box ref={playerRef} sx={[styles.player, cinema ? styles.playerCinema : {}]} onClick={advance} onClickCapture={interact} role="button" tabIndex={-1} aria-label="Advance the scene">
-					<Box sx={[styles.stage, cinema ? styles.stageCinema : {}, { bgcolor: stage.blankedTo === "white" ? "#ffffff" : "#000000" }, shake ? shakeSx(shake, beatIndex) : {}]}>
+					<Box
+						sx={[
+							styles.stage,
+							cinema ? styles.stageCinema : {},
+							{ bgcolor: stage.blankedTo === "white" ? "#ffffff" : "#000000", "--wash": `${washMs}ms` },
+							shake ? shakeSx(shake, beatIndex) : {}
+						]}
+					>
 						{stageLayers}
 
 						{fullscreen.supported && stacked && (

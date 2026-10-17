@@ -808,3 +808,19 @@ class FairyArtTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# //////////////////////////////////////////////////////////////////////////////////////////////////
+# //////////////////////////////////////////////////////////////////////////////////////////////////
+# Story expressions
+
+
+class StoryExpressionShapeTests(unittest.TestCase):
+    def test_finds_an_expression_spelled_with_different_punctuation(self):
+        textures = {"Nyto_Isomer_8": object(), "Nyto_Isomer_White": object()}
+        self.assertEqual(extract.story_expression_by_shape(textures, "NytoIsomer", 8), "Nyto_Isomer_8")
+
+    def test_does_not_mistake_a_variant_for_the_index(self):
+        textures = {"Pic_Saki_R_2": object(), "Pic_Saki_3": object()}
+        self.assertIsNone(extract.story_expression_by_shape(textures, "NPC-Saki", 2))
+        self.assertEqual(extract.story_expression_by_shape(textures, "NPC-Saki", 3), "Pic_Saki_3")

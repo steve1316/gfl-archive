@@ -76,6 +76,46 @@
 		"FairyTaunt": {
 			"texture": "target_3",
 			"bundle": "resource_fairy"
+		},
+		"NPC-BoysAntiTank": {
+			"texture": "pic_BoysAntiTank_0",
+			"bundle": "character_npc-boysantitank"
+		},
+		"NPC-Fans": {
+			"texture": "Pic_Fans",
+			"bundle": "character_npc-fans"
+		},
+		"NPC-Junko": {
+			"texture": "Pic_Junko_0",
+			"bundle": "character_npc-junko"
+		},
+		"NPC-Kotarou": {
+			"texture": "Pic_Kotarou_0",
+			"bundle": "character_npc-kotarou"
+		},
+		"NPC-Lily": {
+			"texture": "Pic_Lily_0",
+			"bundle": "character_npc-lily"
+		},
+		"NPC-MizunoAi": {
+			"texture": "Pic_MizunoAi_0",
+			"bundle": "character_npc-mizunoai"
+		},
+		"NPC-Romero": {
+			"texture": "Pic_Romero",
+			"bundle": "character_npc-romero"
+		},
+		"NPC-Saki": {
+			"texture": "Pic_Saki_0",
+			"bundle": "character_npc-saki"
+		},
+		"NPC-Tae": {
+			"texture": "Pic_Tae_0",
+			"bundle": "character_npc-tae"
+		},
+		"NPC-Yugiri": {
+			"texture": "Pic_Yugiri_0",
+			"bundle": "character_npc-yugiri"
 		}
 	},
 	"expressionNote": "Expression variants whose art is not in the prefab's own bundle, keyed by prefab then by the expression index a script uses. The index is not the filename's own number: RO635-NoArmor's expression 5 is the texture ending _4, confirmed by tracing two scenes that use exactly one of its expressions. An expression can also sit in a different bundle from the character's plain pose, as SOPII's do. Anything not listed here falls back to the plain pose. NytoIsomer's expression 3 resolves to the same texture as her plain pose, so it is deliberately not listed: the player's fallback already shows the right picture for it.",
@@ -98,15 +138,47 @@
 			"2": {
 				"texture": "NPC-YegorArm2",
 				"bundle": "character_npc-yegor"
+			},
+			"3": {
+				"texture": "NPC-YegorArm3",
+				"bundle": "character_npc-yegor"
+			},
+			"4": {
+				"texture": "NPC-YegorArm4",
+				"bundle": "character_npc-yegor"
 			}
 		},
 		"NPC-Helian": {
 			"1": {
 				"texture": "pic_NPC-Helian_A",
 				"bundle": "character_npc-helian"
+			},
+			"2": {
+				"texture": "pic_NPC-Helian_F",
+				"bundle": "character_npc-helian"
+			},
+			"3": {
+				"texture": "pic_NPC-Helian_T",
+				"bundle": "character_npc-helian"
+			},
+			"4": {
+				"texture": "pic_NPC-Helian_M_1",
+				"bundle": "character_npc-helian"
 			}
 		},
 		"M4A1Mod": {
+			"1": {
+				"texture": "pic_M4A1Mod_D",
+				"bundle": "character_m4a1mod"
+			},
+			"2": {
+				"texture": "M4A1Mod_微笑",
+				"bundle": "character_m4a1mod"
+			},
+			"3": {
+				"texture": "M4A1Mod_悲伤",
+				"bundle": "character_m4a1mod"
+			},
 			"4": {
 				"texture": "M4A1Mod_紧张",
 				"bundle": "character_m4a1mod"
@@ -134,6 +206,1314 @@
 			"4": {
 				"texture": "Nyto_Isomer_Shadow_laugh",
 				"bundle": "character_nyto"
+			},
+			"7": {
+				"texture": "Nyto_7",
+				"bundle": "character_nyto"
+			}
+		},
+		"SOPIIDamage": {
+			"2": {
+				"texture": "M4 SOPMOD IIDamage2",
+				"bundle": "character_special"
+			},
+			"3": {
+				"texture": "M4 SOPMOD IIDamage3",
+				"bundle": "character_special"
+			}
+		},
+		"UMP9": {
+			"4": {
+				"texture": "pic_UMP9_3",
+				"bundle": "character_special"
+			}
+		},
+		"ExcutionerElite": {
+			"1": {
+				"texture": "ExcutionerElite_2",
+				"bundle": "character_bossexcutioner"
+			}
+		},
+		"Weaver": {
+			"1": {
+				"texture": "Weaver_2",
+				"bundle": "character_bossweaver"
+			},
+			"5": {
+				"texture": "pic_Weaver_nobuki_2",
+				"bundle": "character_weaver"
+			},
+			"6": {
+				"texture": "pic_Weaver_nobuki_3",
+				"bundle": "character_weaver"
+			},
+			"7": {
+				"texture": "pic_Weaver_nobuki_4",
+				"bundle": "character_weaver"
+			},
+			"9": {
+				"texture": "pic_Weaver_nobuki_6",
+				"bundle": "character_weaver"
+			}
+		},
+		"G11": {
+			"3": {
+				"texture": "pic_G11_2",
+				"bundle": "character_special"
+			},
+			"6": {
+				"texture": "pic_G11_1602",
+				"bundle": "character_g11_1602"
+			}
+		},
+		"UMP45_Young": {
+			"1": {
+				"texture": "UMP45-Young_sad",
+				"bundle": "character_special"
+			},
+			"2": {
+				"texture": "UMP45-Young_serious",
+				"bundle": "character_special"
+			},
+			"3": {
+				"texture": "UMP45-Young_angry",
+				"bundle": "character_special"
+			}
+		},
+		"UMP40": {
+			"2": {
+				"texture": "pic_UMP40_sad",
+				"bundle": "character_special"
+			},
+			"3": {
+				"texture": "pic_UMP40_smile",
+				"bundle": "character_special"
+			},
+			"4": {
+				"texture": "pic_UMP40_lol",
+				"bundle": "character_special"
+			},
+			"5": {
+				"texture": "pic_UMP40_angry",
+				"bundle": "character_special"
+			}
+		},
+		"AR15Mod": {
+			"1": {
+				"texture": "pic_AR15Mod_D",
+				"bundle": "character_ar15mod"
+			},
+			"2": {
+				"texture": "AR15Mod_伤心",
+				"bundle": "character_ar15mod"
+			},
+			"3": {
+				"texture": "AR15Mod_微笑",
+				"bundle": "character_ar15mod"
+			},
+			"4": {
+				"texture": "AR15Mod_无奈",
+				"bundle": "character_ar15mod"
+			},
+			"5": {
+				"texture": "AR15Mod_紧张",
+				"bundle": "character_ar15mod"
+			}
+		},
+		"FAIL": {
+			"1": {
+				"texture": "pic_FAIL_D",
+				"bundle": "character_fail"
+			}
+		},
+		"AEK999": {
+			"2": {
+				"texture": "pic_AEK999_1505",
+				"bundle": "character_aek999_1505"
+			}
+		},
+		"UMP45": {
+			"5": {
+				"texture": "UMP45Damage",
+				"bundle": "character_special"
+			}
+		},
+		"MP40": {
+			"1": {
+				"texture": "pic_MP40_D",
+				"bundle": "character_mp40_nom"
+			}
+		},
+		"NPC-Havel": {
+			"1": {
+				"texture": "NPC-Havel2",
+				"bundle": "character_npc-havel"
+			}
+		},
+		"NPC-AngeDamage": {
+			"1": {
+				"texture": "NPC-AngeDamage",
+				"bundle": "character_special"
+			}
+		},
+		"HS2000": {
+			"1": {
+				"texture": "pic_HS2000_D",
+				"bundle": "character_hs2000"
+			}
+		},
+		"Dana": {
+			"2": {
+				"texture": "pic_Dana_Serious",
+				"bundle": "character_dana"
+			},
+			"3": {
+				"texture": "pic_Dana_Smile",
+				"bundle": "character_dana"
+			}
+		},
+		"Sei": {
+			"2": {
+				"texture": "pic_SEI_1",
+				"bundle": "character_sei"
+			},
+			"3": {
+				"texture": "pic_SEI_2",
+				"bundle": "character_sei"
+			},
+			"4": {
+				"texture": "pic_SEI_3",
+				"bundle": "character_sei"
+			},
+			"5": {
+				"texture": "pic_SEI_4",
+				"bundle": "character_sei"
+			}
+		},
+		"Jill": {
+			"2": {
+				"texture": "pic_Jill_Talk",
+				"bundle": "character_jill"
+			},
+			"3": {
+				"texture": "pic_Jill_Smile",
+				"bundle": "character_jill"
+			},
+			"4": {
+				"texture": "pic_Jill_Shy",
+				"bundle": "character_jill"
+			}
+		},
+		"Dorothy": {
+			"2": {
+				"texture": "pic_Dorothy_Cry",
+				"bundle": "character_dorothy"
+			},
+			"3": {
+				"texture": "pic_Dorothy_Fear",
+				"bundle": "character_dorothy"
+			},
+			"4": {
+				"texture": "pic_Dorothy_Sad",
+				"bundle": "character_dorothy"
+			},
+			"5": {
+				"texture": "pic_Dorothy_Shy",
+				"bundle": "character_dorothy"
+			},
+			"6": {
+				"texture": "pic_Dorothy_Smile",
+				"bundle": "character_dorothy"
+			}
+		},
+		"Alma": {
+			"2": {
+				"texture": "pic_Alma_Normal",
+				"bundle": "character_alma"
+			},
+			"3": {
+				"texture": "pic_Alma_Amazed",
+				"bundle": "character_alma"
+			},
+			"4": {
+				"texture": "pic_Alma_Sad",
+				"bundle": "character_alma"
+			}
+		},
+		"G28": {
+			"2": {
+				"texture": "pic_G28_2304",
+				"bundle": "character_g28_2304_nom"
+			},
+			"4": {
+				"texture": "pic_G28_1104",
+				"bundle": "character_g28_1104_nom"
+			}
+		},
+		"SSG3000": {
+			"1": {
+				"texture": "pic_SSG3000_D",
+				"bundle": "character_ssg3000"
+			}
+		},
+		"DesertEagle": {
+			"1": {
+				"texture": "pic_DesertEagle_D",
+				"bundle": "character_deserteagle"
+			}
+		},
+		"Welrod": {
+			"2": {
+				"texture": "pic_Welrod_2103",
+				"bundle": "character_welrod_2103_nom"
+			},
+			"4": {
+				"texture": "pic_Welrod_1401_1",
+				"bundle": "character_welrod_1401"
+			}
+		},
+		"Spitfire": {
+			"2": {
+				"texture": "pic_Spitfire_1405",
+				"bundle": "character_spitfire_1405"
+			}
+		},
+		"OC44": {
+			"2": {
+				"texture": "pic_OC44_1608",
+				"bundle": "character_oc44_1608"
+			}
+		},
+		"WA2000": {
+			"1": {
+				"texture": "pic_WA2000_D",
+				"bundle": "character_wa2000"
+			},
+			"2": {
+				"texture": "pic_WA2000_306",
+				"bundle": "character_wa2000_306"
+			},
+			"3": {
+				"texture": "pic_WA2000_306_D",
+				"bundle": "character_wa2000_306"
+			}
+		},
+		"SVD": {
+			"2": {
+				"texture": "Pic_SVD_305",
+				"bundle": "character_svd_305_nom"
+			}
+		},
+		"KP31": {
+			"2": {
+				"texture": "pic_KP31_310",
+				"bundle": "character_kp31_310_nom"
+			},
+			"3": {
+				"texture": "pic_KP31_310_D",
+				"bundle": "character_kp31_310_nom"
+			},
+			"6": {
+				"texture": "pic_KP31_1103",
+				"bundle": "character_kp31_1103_nom"
+			},
+			"8": {
+				"texture": "pic_KP31_M_1",
+				"bundle": "character_kp31_310"
+			},
+			"9": {
+				"texture": "pic_KP31_M_2",
+				"bundle": "character_kp31_310"
+			},
+			"10": {
+				"texture": "pic_KP31_M_3",
+				"bundle": "character_kp31_310"
+			}
+		},
+		"M1873": {
+			"2": {
+				"texture": "pic_M1873_301",
+				"bundle": "character_m1873_301_nom"
+			}
+		},
+		"CZ75": {
+			"1": {
+				"texture": "pic_CZ75_D",
+				"bundle": "character_cz75"
+			},
+			"2": {
+				"texture": "pic_CZ75_1604",
+				"bundle": "character_cz75_1604"
+			},
+			"4": {
+				"texture": "pic_CZ75_3005",
+				"bundle": "character_cz75_3005"
+			}
+		},
+		"MG5": {
+			"2": {
+				"texture": "pic_MG5_309",
+				"bundle": "character_mg5_309"
+			},
+			"3": {
+				"texture": "pic_MG5_309_D",
+				"bundle": "character_mg5_309"
+			},
+			"6": {
+				"texture": "pic_MG5_2501_NPC",
+				"bundle": "character_mg5_2501"
+			}
+		},
+		"M14": {
+			"2": {
+				"texture": "pic_M14_303",
+				"bundle": "character_m14_303"
+			},
+			"4": {
+				"texture": "pic_M14_M_1",
+				"bundle": "character_m14_303"
+			}
+		},
+		"M21": {
+			"2": {
+				"texture": "pic_M21_304",
+				"bundle": "character_m21_304_nom"
+			},
+			"4": {
+				"texture": "pic_M21_M_1",
+				"bundle": "character_m21_304"
+			},
+			"5": {
+				"texture": "pic_M21_M_2",
+				"bundle": "character_m21_304"
+			}
+		},
+		"M1918": {
+			"6": {
+				"texture": "pic_M1918_1606",
+				"bundle": "character_m1918_1606_nom"
+			}
+		},
+		"G36": {
+			"4": {
+				"texture": "pic_G36_905",
+				"bundle": "character_g36_905"
+			},
+			"8": {
+				"texture": "pic_G36_2407",
+				"bundle": "character_g36_2407_nom"
+			},
+			"17": {
+				"texture": "pic_G36_2407_2",
+				"bundle": "character_g36_2407_nom"
+			},
+			"18": {
+				"texture": "pic_G36_2407_3",
+				"bundle": "character_g36_2407_nom"
+			}
+		},
+		"SL8": {
+			"2": {
+				"texture": "pic_SL8_1",
+				"bundle": "character_sl8"
+			}
+		},
+		"Webley": {
+			"1": {
+				"texture": "pic_Webley_D",
+				"bundle": "character_webley"
+			}
+		},
+		"Henrietta": {
+			"1": {
+				"texture": "pic_Henrietta_1",
+				"bundle": "character_henrietta"
+			},
+			"2": {
+				"texture": "pic_Henrietta_2",
+				"bundle": "character_henrietta"
+			},
+			"3": {
+				"texture": "pic_Henrietta_3",
+				"bundle": "character_henrietta"
+			},
+			"4": {
+				"texture": "pic_Henrietta_4",
+				"bundle": "character_henrietta"
+			}
+		},
+		"Carcano1891": {
+			"2": {
+				"texture": "pic_Carcano1891_2201",
+				"bundle": "character_carcano1891_2201"
+			}
+		},
+		"Rico": {
+			"2": {
+				"texture": "pic_Rico_542",
+				"bundle": "character_rico_542"
+			},
+			"4": {
+				"texture": "pic_Rico_542_D1",
+				"bundle": "character_rico_542"
+			}
+		},
+		"Triela": {
+			"1": {
+				"texture": "Pic_Triela_D",
+				"bundle": "character_triela"
+			}
+		},
+		"Claes": {
+			"2": {
+				"texture": "pic_Claes_545",
+				"bundle": "character_claes_545"
+			}
+		},
+		"Carcano1938": {
+			"2": {
+				"texture": "pic_Carcano1938_2202",
+				"bundle": "character_carcano1938_2202"
+			}
+		},
+		"AA12": {
+			"2": {
+				"texture": "pic_AA12_2403",
+				"bundle": "character_aa12_2403"
+			}
+		},
+		"Ithaca37": {
+			"2": {
+				"texture": "pic_Ithaca37_1105",
+				"bundle": "character_ithaca37_1105_nom"
+			}
+		},
+		"Type88": {
+			"4": {
+				"texture": "pic_Type88_3504",
+				"bundle": "character_type88_3504_nom"
+			}
+		},
+		"95type": {
+			"2": {
+				"texture": "pic_95type_1102",
+				"bundle": "character_95type_1102_nom"
+			},
+			"6": {
+				"texture": "pic_95type_1102_2",
+				"bundle": "character_95type_1102_nom"
+			}
+		},
+		"FN57": {
+			"6": {
+				"texture": "pic_FN57_1109",
+				"bundle": "character_fn57_1109_nom"
+			},
+			"8": {
+				"texture": "pic_FN57_1109_2",
+				"bundle": "character_fn57_1109_nom"
+			}
+		},
+		"P38": {
+			"2": {
+				"texture": "pic_P38_2410",
+				"bundle": "character_p38_2410_nom"
+			}
+		},
+		"G41": {
+			"2": {
+				"texture": "pic_G41_2401",
+				"bundle": "character_g41_2401_nom"
+			}
+		},
+		"NTW20": {
+			"6": {
+				"texture": "pic_NTW20_1101",
+				"bundle": "character_ntw20_1101_nom"
+			}
+		},
+		"MP7": {
+			"2": {
+				"texture": "pic_MP7_2405",
+				"bundle": "character_mp7_2405_nom"
+			}
+		},
+		"97typeS": {
+			"2": {
+				"texture": "pic_97typeS_3807",
+				"bundle": "character_97types_3807_nom"
+			}
+		},
+		"SuperSASS": {
+			"2": {
+				"texture": "pic_SuperSASS_1407",
+				"bundle": "character_supersass_1407"
+			}
+		},
+		"TAC50": {
+			"2": {
+				"texture": "pic_TAC50_2602",
+				"bundle": "character_tac50_2602"
+			}
+		},
+		"NPC-Dima": {
+			"1": {
+				"texture": "NPC-Dima(1)",
+				"bundle": "character_npc-dima"
+			},
+			"2": {
+				"texture": "NPC-Dima(2)",
+				"bundle": "character_npc-dima"
+			},
+			"3": {
+				"texture": "NPC-Dima(3)",
+				"bundle": "character_npc-dima"
+			}
+		},
+		"Vector": {
+			"6": {
+				"texture": "pic_Vector_6",
+				"bundle": "character_vector_2"
+			},
+			"7": {
+				"texture": "pic_Vector_7",
+				"bundle": "character_vector_2"
+			}
+		},
+		"A91": {
+			"1": {
+				"texture": "pic_A91_D",
+				"bundle": "character_a91"
+			}
+		},
+		"GeneralLiu": {
+			"1": {
+				"texture": "pic_GeneralLiu_D",
+				"bundle": "character_generalliu"
+			}
+		},
+		"M4 SOPMOD IIMod": {
+			"3": {
+				"texture": "pic_M4 SOPMOD IIMod_2",
+				"bundle": "character_m4 sopmod iimod"
+			}
+		},
+		"NPC-Jormungand": {
+			"1": {
+				"texture": "pic_NPC_Jormungand1",
+				"bundle": "character_npc-jormungand"
+			},
+			"2": {
+				"texture": "pic_NPC_Jormungand02",
+				"bundle": "character_npc-jormungand"
+			}
+		},
+		"P90": {
+			"1": {
+				"texture": "pic_P90_D",
+				"bundle": "character_p90"
+			},
+			"4": {
+				"texture": "pic_P90_nosunglasses",
+				"bundle": "character_p90"
+			}
+		},
+		"Yurine": {
+			"1": {
+				"texture": "pic_Yurine",
+				"bundle": "character_yurine"
+			},
+			"3": {
+				"texture": "pic_Yurine_angry",
+				"bundle": "character_yurine"
+			},
+			"4": {
+				"texture": "pic_Yurine_wow",
+				"bundle": "character_yurine"
+			},
+			"5": {
+				"texture": "pic_Yurine_smile",
+				"bundle": "character_yurine"
+			},
+			"6": {
+				"texture": "pic_Yurine_568",
+				"bundle": "character_yurine_568"
+			},
+			"7": {
+				"texture": "pic_Yurine_568_D",
+				"bundle": "character_yurine_568"
+			}
+		},
+		"NZ75": {
+			"1": {
+				"texture": "pic_NZ75_D",
+				"bundle": "character_nz75"
+			},
+			"4": {
+				"texture": "pic_NZ75_403",
+				"bundle": "character_nz75_403"
+			}
+		},
+		"Medusa": {
+			"1": {
+				"texture": "pic_Medusa_D",
+				"bundle": "character_medusa"
+			},
+			"2": {
+				"texture": "pic_Medusa_toutao",
+				"bundle": "character_medusa"
+			},
+			"3": {
+				"texture": "pic_Medusa_cry",
+				"bundle": "character_medusa"
+			},
+			"4": {
+				"texture": "pic_Medusa_smile",
+				"bundle": "character_medusa"
+			}
+		},
+		"Pekora": {
+			"1": {
+				"texture": "pic_Pekora_D",
+				"bundle": "character_pekora"
+			},
+			"2": {
+				"texture": "pic_Pekora_angry",
+				"bundle": "character_pekora"
+			},
+			"3": {
+				"texture": "pic_Pekora_happy",
+				"bundle": "character_pekora"
+			}
+		},
+		"Lewis": {
+			"8": {
+				"texture": "pic_Lewis_5",
+				"bundle": "character_lewis"
+			},
+			"9": {
+				"texture": "pic_Lewis_6",
+				"bundle": "character_lewis"
+			},
+			"10": {
+				"texture": "pic_Lewis_7",
+				"bundle": "character_lewis"
+			},
+			"11": {
+				"texture": "pic_Lewis_2",
+				"bundle": "character_lewis"
+			},
+			"13": {
+				"texture": "pic_Lewis_m_HE",
+				"bundle": "character_lewis"
+			}
+		},
+		"Thunder50": {
+			"2": {
+				"texture": "pic_Thunder50_3309",
+				"bundle": "character_thunder50_3309"
+			}
+		},
+		"ColtDefender": {
+			"1": {
+				"texture": "pic_ColtDefender_D",
+				"bundle": "character_coltdefender"
+			}
+		},
+		"BOSS-2": {
+			"1": {
+				"texture": "Excutioner",
+				"bundle": "character_bossexcutioner"
+			}
+		},
+		"Px4Storm": {
+			"2": {
+				"texture": "pic_Px4Storm_2801",
+				"bundle": "character_px4storm_2801"
+			},
+			"4": {
+				"texture": "pic_Px4Storm_M_1",
+				"bundle": "character_px4storm"
+			},
+			"5": {
+				"texture": "pic_Px4Storm_M_2",
+				"bundle": "character_px4storm_2801"
+			},
+			"6": {
+				"texture": "pic_Px4Storm_M_3",
+				"bundle": "character_px4storm_2801"
+			}
+		},
+		"hkcaws": {
+			"2": {
+				"texture": "pic_HKCAWS_4003",
+				"bundle": "character_hkcaws_4003"
+			},
+			"4": {
+				"texture": "pic_HKCAWS_M_1",
+				"bundle": "character_hkcaws"
+			},
+			"5": {
+				"texture": "pic_HKCAWS_M_2",
+				"bundle": "character_hkcaws"
+			},
+			"6": {
+				"texture": "pic_HKCAWS_M_3",
+				"bundle": "character_hkcaws"
+			}
+		},
+		"RFB": {
+			"6": {
+				"texture": "pic_RFB_M_1",
+				"bundle": "character_rfb_1601"
+			}
+		},
+		"Type100": {
+			"6": {
+				"texture": "pic_Type100_M_1",
+				"bundle": "character_type100"
+			},
+			"7": {
+				"texture": "pic_Type100_M_2",
+				"bundle": "character_type100"
+			},
+			"8": {
+				"texture": "pic_Type100_4004_M_3",
+				"bundle": "character_type100_4004"
+			}
+		},
+		"PDW": {
+			"2": {
+				"texture": "pic_PDW_4005",
+				"bundle": "character_pdw_4005"
+			}
+		},
+		"Falcon": {
+			"1": {
+				"texture": "pic_Falcon_D",
+				"bundle": "character_falcon"
+			}
+		},
+		"BOSS-7": {
+			"1": {
+				"texture": "BOSS-7-2",
+				"bundle": "character_boss"
+			}
+		},
+		"Rhino": {
+			"2": {
+				"texture": "pic_Rhino_1",
+				"bundle": "character_rhino"
+			}
+		},
+		"PPD40": {
+			"2": {
+				"texture": "pic_PPD40_6105",
+				"bundle": "character_ppd40_6105"
+			},
+			"3": {
+				"texture": "pic_PPD40_6105_2",
+				"bundle": "character_ppd40_6105"
+			},
+			"4": {
+				"texture": "pic_PPD40_6105_3",
+				"bundle": "character_ppd40_6105"
+			}
+		},
+		"NPC-KalinSwim": {
+			"1": {
+				"texture": "pic_NPC_Kalina_209_2",
+				"bundle": "character_npc_kalina_209"
+			}
+		},
+		"KAC": {
+			"2": {
+				"texture": "pic_KAC_4706",
+				"bundle": "character_kac_4706_nom"
+			},
+			"3": {
+				"texture": "pic_KAC_4706_2",
+				"bundle": "character_kac_4706_nom"
+			},
+			"4": {
+				"texture": "pic_KAC_4706_3",
+				"bundle": "character_kac_4706_nom"
+			}
+		},
+		"UKM2000": {
+			"2": {
+				"texture": "pic_UKM2000_6106",
+				"bundle": "character_ukm2000_6106_nom"
+			}
+		},
+		"PP2000": {
+			"1": {
+				"texture": "pic_PP2000_D",
+				"bundle": "character_pp2000_nom"
+			}
+		},
+		"RPD": {
+			"1": {
+				"texture": "pic_RPD_D",
+				"bundle": "character_rpd"
+			}
+		},
+		"SCAR-L": {
+			"1": {
+				"texture": "pic_SCARL_D",
+				"bundle": "character_scarl"
+			}
+		},
+		"NPC-Saki": {
+			"1": {
+				"texture": "Pic_Saki_1",
+				"bundle": "character_npc-saki"
+			},
+			"2": {
+				"texture": "Pic_Saki_2",
+				"bundle": "character_npc-saki"
+			},
+			"3": {
+				"texture": "Pic_Saki_3",
+				"bundle": "character_npc-saki"
+			},
+			"4": {
+				"texture": "Pic_Saki_4",
+				"bundle": "character_npc-saki"
+			},
+			"5": {
+				"texture": "Pic_Saki_5",
+				"bundle": "character_npc-saki"
+			},
+			"6": {
+				"texture": "Pic_Saki_6",
+				"bundle": "character_npc-saki"
+			},
+			"7": {
+				"texture": "Pic_Saki_7",
+				"bundle": "character_npc-saki"
+			},
+			"9": {
+				"texture": "Pic_Saki_D_1",
+				"bundle": "character_npc-saki"
+			},
+			"10": {
+				"texture": "Pic_Saki_D_2",
+				"bundle": "character_npc-saki"
+			},
+			"11": {
+				"texture": "Pic_Saki_D_3",
+				"bundle": "character_npc-saki"
+			},
+			"12": {
+				"texture": "Pic_Saki_R_0",
+				"bundle": "character_npc-saki"
+			},
+			"13": {
+				"texture": "Pic_Saki_R_1",
+				"bundle": "character_npc-saki"
+			},
+			"14": {
+				"texture": "Pic_Saki_R_2",
+				"bundle": "character_npc-saki"
+			},
+			"15": {
+				"texture": "Pic_Saki_R_3",
+				"bundle": "character_npc-saki"
+			},
+			"16": {
+				"texture": "Pic_Saki_R_4",
+				"bundle": "character_npc-saki"
+			}
+		},
+		"NPC-Yugiri": {
+			"1": {
+				"texture": "Pic_Yugiri_1",
+				"bundle": "character_npc-yugiri"
+			},
+			"2": {
+				"texture": "Pic_Yugiri_2",
+				"bundle": "character_npc-yugiri"
+			},
+			"3": {
+				"texture": "Pic_Yugiri_3",
+				"bundle": "character_npc-yugiri"
+			},
+			"4": {
+				"texture": "Pic_Yugiri_4",
+				"bundle": "character_npc-yugiri"
+			},
+			"6": {
+				"texture": "Pic_Yugiri_D_1",
+				"bundle": "character_npc-yugiri"
+			},
+			"7": {
+				"texture": "Pic_Yugiri_D_2",
+				"bundle": "character_npc-yugiri"
+			},
+			"8": {
+				"texture": "Pic_Yugiri_D_3",
+				"bundle": "character_npc-yugiri"
+			},
+			"9": {
+				"texture": "Pic_Yugiri_R_0",
+				"bundle": "character_npc-yugiri"
+			},
+			"11": {
+				"texture": "Pic_Yugiri_R_2",
+				"bundle": "character_npc-yugiri"
+			}
+		},
+		"NPC-Lily": {
+			"1": {
+				"texture": "Pic_Lily_1",
+				"bundle": "character_npc-lily"
+			},
+			"2": {
+				"texture": "Pic_Lily_2",
+				"bundle": "character_npc-lily"
+			},
+			"3": {
+				"texture": "Pic_Lily_3",
+				"bundle": "character_npc-lily"
+			},
+			"4": {
+				"texture": "Pic_Lily_4",
+				"bundle": "character_npc-lily"
+			},
+			"5": {
+				"texture": "Pic_Lily_5",
+				"bundle": "character_npc-lily"
+			},
+			"6": {
+				"texture": "Pic_Lily_6",
+				"bundle": "character_npc-lily"
+			},
+			"7": {
+				"texture": "Pic_Lily_7",
+				"bundle": "character_npc-lily"
+			},
+			"8": {
+				"texture": "Pic_Lily_8",
+				"bundle": "character_npc-lily"
+			},
+			"9": {
+				"texture": "Pic_Lily_9",
+				"bundle": "character_npc-lily"
+			},
+			"10": {
+				"texture": "Pic_Lily_D",
+				"bundle": "character_npc-lily"
+			},
+			"11": {
+				"texture": "Pic_Lily_D_1",
+				"bundle": "character_npc-lily"
+			},
+			"12": {
+				"texture": "Pic_Lily_D_2",
+				"bundle": "character_npc-lily"
+			},
+			"13": {
+				"texture": "Pic_Lily_D_3",
+				"bundle": "character_npc-lily"
+			},
+			"14": {
+				"texture": "Pic_Lily_R_0",
+				"bundle": "character_npc-lily"
+			},
+			"15": {
+				"texture": "Pic_Lily_R_1",
+				"bundle": "character_npc-lily"
+			},
+			"17": {
+				"texture": "Pic_Lily_R_3",
+				"bundle": "character_npc-lily"
+			}
+		},
+		"NPC-Tae": {
+			"1": {
+				"texture": "Pic_Tae_1",
+				"bundle": "character_npc-tae"
+			},
+			"3": {
+				"texture": "Pic_Tae_3",
+				"bundle": "character_npc-tae"
+			},
+			"4": {
+				"texture": "Pic_Tae_4",
+				"bundle": "character_npc-tae"
+			},
+			"5": {
+				"texture": "Pic_Tae_5",
+				"bundle": "character_npc-tae"
+			},
+			"6": {
+				"texture": "Pic_Tae_6",
+				"bundle": "character_npc-tae"
+			},
+			"7": {
+				"texture": "Pic_Tae_7",
+				"bundle": "character_npc-tae"
+			},
+			"8": {
+				"texture": "Pic_Tae_D",
+				"bundle": "character_npc-tae"
+			}
+		},
+		"NPC-MizunoAi": {
+			"1": {
+				"texture": "Pic_MizunoAi_1",
+				"bundle": "character_npc-mizunoai"
+			},
+			"2": {
+				"texture": "Pic_MizunoAi_2",
+				"bundle": "character_npc-mizunoai"
+			},
+			"3": {
+				"texture": "Pic_MizunoAi_3",
+				"bundle": "character_npc-mizunoai"
+			},
+			"5": {
+				"texture": "Pic_MizunoAi_5",
+				"bundle": "character_npc-mizunoai"
+			},
+			"6": {
+				"texture": "Pic_MizunoAi_D_0",
+				"bundle": "character_npc-mizunoai"
+			},
+			"7": {
+				"texture": "Pic_MizunoAi_D_1",
+				"bundle": "character_npc-mizunoai"
+			},
+			"8": {
+				"texture": "Pic_MizunoAi_D_2",
+				"bundle": "character_npc-mizunoai"
+			},
+			"9": {
+				"texture": "Pic_MizunoAi_R_0",
+				"bundle": "character_npc-mizunoai"
+			},
+			"11": {
+				"texture": "Pic_MizunoAi_R_2",
+				"bundle": "character_npc-mizunoai"
+			}
+		},
+		"NPC-Junko": {
+			"1": {
+				"texture": "Pic_Junko_1",
+				"bundle": "character_npc-junko"
+			},
+			"2": {
+				"texture": "Pic_Junko_2",
+				"bundle": "character_npc-junko"
+			},
+			"3": {
+				"texture": "Pic_Junko_3",
+				"bundle": "character_npc-junko"
+			},
+			"4": {
+				"texture": "Pic_Junko_4",
+				"bundle": "character_npc-junko"
+			},
+			"5": {
+				"texture": "Pic_Junko_5",
+				"bundle": "character_npc-junko"
+			},
+			"6": {
+				"texture": "Pic_Junko_6",
+				"bundle": "character_npc-junko"
+			},
+			"7": {
+				"texture": "Pic_Junko_D",
+				"bundle": "character_npc-junko"
+			},
+			"8": {
+				"texture": "Pic_Junko_D_1",
+				"bundle": "character_npc-junko"
+			},
+			"9": {
+				"texture": "Pic_Junko_D_2",
+				"bundle": "character_npc-junko"
+			},
+			"10": {
+				"texture": "Pic_Junko_D_3",
+				"bundle": "character_npc-junko"
+			},
+			"12": {
+				"texture": "Pic_Junko_R_1",
+				"bundle": "character_npc-junko"
+			},
+			"15": {
+				"texture": "Pic_Junko_R_4",
+				"bundle": "character_npc-junko"
+			}
+		},
+		"NPC-Romero": {
+			"1": {
+				"texture": "Pic_Romero_1",
+				"bundle": "character_npc-romero"
+			}
+		},
+		"HK21": {
+			"4": {
+				"texture": "pic_HK21_2701_NPC",
+				"bundle": "character_hk21_2701"
+			}
+		},
+		"JS-127": {
+			"4": {
+				"texture": "pic_JS-127_2702_NPC",
+				"bundle": "character_js-127_2702"
+			}
+		},
+		"PM06": {
+			"2": {
+				"texture": "pic_PM06_2703(1)",
+				"bundle": "character_pm06_2703"
+			}
+		},
+		"80type": {
+			"6": {
+				"texture": "pic_80type_2504_NPC",
+				"bundle": "character_80type_2504"
+			}
+		},
+		"M1897": {
+			"2": {
+				"texture": "pic_M1897_2505_NPC",
+				"bundle": "character_m1897_2505"
+			}
+		},
+		"NPC-Kotarou": {
+			"1": {
+				"texture": "Pic_Kotarou_1",
+				"bundle": "character_npc-kotarou"
+			}
+		},
+		"UMP45Mod": {
+			"1": {
+				"texture": "pic_UMP45Mod_D",
+				"bundle": "character_ump45mod"
+			}
+		},
+		"M1928A1": {
+			"1": {
+				"texture": "pic_M1928A1_D",
+				"bundle": "character_m1928a1_nom"
+			}
+		},
+		"NPC-Purin": {
+			"1": {
+				"texture": "pic_Purin_1",
+				"bundle": "character_npc-purin"
+			},
+			"2": {
+				"texture": "pic_Purin_2",
+				"bundle": "character_npc-purin"
+			},
+			"3": {
+				"texture": "pic_Purin_3",
+				"bundle": "character_npc-purin"
+			}
+		},
+		"NPC-BoysAntiTank": {
+			"1": {
+				"texture": "pic_BoysAntiTank_1",
+				"bundle": "character_npc-boysantitank"
+			},
+			"2": {
+				"texture": "pic_BoysAntiTank_2",
+				"bundle": "character_npc-boysantitank"
+			},
+			"3": {
+				"texture": "pic_BoysAntiTank_3",
+				"bundle": "character_npc-boysantitank"
+			}
+		},
+		"NPC-QBU191": {
+			"1": {
+				"texture": "pic_QBU191_1",
+				"bundle": "character_npc-qbu191"
+			},
+			"2": {
+				"texture": "pic_QBU191_2",
+				"bundle": "character_npc-qbu191"
+			}
+		},
+		"NPC-Suzuka": {
+			"1": {
+				"texture": "pic_Suzuka_1",
+				"bundle": "character_npc-suzuka"
+			}
+		},
+		"NPC-HK433": {
+			"1": {
+				"texture": "pic_HK443_1",
+				"bundle": "character_npc-hk433"
+			},
+			"2": {
+				"texture": "pic_HK443_2",
+				"bundle": "character_npc-hk433"
+			},
+			"3": {
+				"texture": "pic_HK443_3",
+				"bundle": "character_npc-hk433"
+			},
+			"4": {
+				"texture": "pic_HK443_4",
+				"bundle": "character_npc-hk433"
+			}
+		},
+		"NPC-Batou": {
+			"1": {
+				"texture": "pic_Batou_1",
+				"bundle": "character_npc-batou"
+			},
+			"2": {
+				"texture": "pic_Batou_2",
+				"bundle": "character_npc-batou"
+			}
+		},
+		"BoysAntiTank": {
+			"1": {
+				"texture": "pic_BoysAntiTank_D",
+				"bundle": "character_boysantitank"
+			}
+		},
+		"NPC-Maid": {
+			"2": {
+				"texture": "pic_NPC_Maid_1",
+				"bundle": "character_npc_maid"
+			}
+		},
+		"NPC-Tony_AB": {
+			"1": {
+				"texture": "NPC-Tony_AB_1",
+				"bundle": "character_npc-tony_ab"
+			}
+		},
+		"G36CMod": {
+			"7": {
+				"texture": "pic_G36CMod",
+				"bundle": "character_g36cmod_nom"
+			}
+		},
+		"TT33": {
+			"1": {
+				"texture": "pic_TT33_D",
+				"bundle": "character_tt33_nom"
+			}
+		},
+		"98k": {
+			"1": {
+				"texture": "pic_98K_D",
+				"bundle": "character_98k_nom"
+			}
+		},
+		"M9": {
+			"1": {
+				"texture": "pic_M9_D",
+				"bundle": "character_m9"
 			}
 		}
 	},
