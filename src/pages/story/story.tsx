@@ -225,6 +225,9 @@ const PRELOAD_LANES = 4;
 /** How long a screen fade takes to wash in or out, in milliseconds. */
 const WASH_MS = 450;
 
+/** The longest fade a script's `CGDelay` can ask for, in seconds. The scripts top out at 3. */
+const MAX_WASH_S = 5;
+
 /** How far a shake of range 1 moves the stage, as a share of its width. Scripts ask for ranges of about 5 to 8. */
 const SHAKE_UNIT = 0.0015;
 
@@ -273,7 +276,7 @@ const styles = {
 		overflow: "hidden",
 		// What a blanked background shows through as. The scene's own picture covers it whenever the scene is not blanked.
 		bgcolor: "#000000",
-		transition: `background-color ${WASH_MS}ms ease`,
+		transition: "background-color var(--wash, 450ms) ease",
 		cursor: "pointer",
 		userSelect: "none",
 		// Queried by the characters, so a comms window can be sized against the stage rather than against its own slot.
@@ -284,9 +287,9 @@ const styles = {
 		"@keyframes storyShake1": STORY_SHAKE_FRAMES
 	},
 	// The scene's picture, on its own layer so a beat that blanks the background fades it out and leaves the cast against the bare stage.
-	scene: { position: "absolute", inset: 0, transition: `opacity ${WASH_MS}ms ease` },
+	scene: { position: "absolute", inset: 0, transition: "opacity var(--wash, 450ms) ease" },
 	// A new picture fades in over the stage's black. The scene is keyed on its picture, so every change plays this, as AK's stage does.
-	sceneIn: { animation: `storySceneIn ${WASH_MS}ms ease-out`, "@keyframes storySceneIn": { from: { opacity: 0 }, to: { opacity: 1 } } },
+	sceneIn: { animation: "storySceneIn var(--wash, 450ms) ease-out", "@keyframes storySceneIn": { from: { opacity: 0 }, to: { opacity: 1 } } },
 	sprites: { position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" },
 	// One slot per character on stage, spread evenly across the full width: one sits centred, two at a third and two thirds.
 	// Each is a square the height of the stage, dropped so the character is framed from the waist up, as the game draws them.
@@ -426,7 +429,7 @@ const styles = {
 		[STACKED]: { width: "86%" }
 	},
 	// The tints sit over the scene but under the dialogue, so a line spoken over a darkened scene is still readable.
-	wash: { position: "absolute", inset: 0, pointerEvents: "none", transition: `opacity ${WASH_MS}ms ease` },
+	wash: { position: "absolute", inset: 0, pointerEvents: "none", transition: "opacity var(--wash, 450ms) ease" },
 	// A beat's own transition, played once as it arrives and then gone, rather than a wash left sitting over the scene.
 	fade: { position: "absolute", inset: 0, pointerEvents: "none", animation: `storyFade ${WASH_MS}ms ease-out both`, "@keyframes storyFade": { from: { opacity: 1 }, to: { opacity: 0 } } },
 	// The game keeps its controls in the top left of the scene itself, as small square plates rather than a toolbar. Below the
@@ -780,6 +783,20 @@ function useSideMargin(ref: RefObject<HTMLElement | null>): number {
 }
 
 /**
+ * How long the beat's picture changes take, in milliseconds.
+ *
+ * `CGDelay` carries seconds and rides on the same beat as the background or screen change it times. It applies to that beat only, so
+ * the next change goes back to the default.
+ *
+ * @param beat The beat, or null.
+ * @returns The fade length in milliseconds.
+ */
+function washMsAt(beat: StoryBeat | null): number {
+	const seconds = Number(beat?.ops.find((entry) => entry.type === "cgDelay")?.value);
+	return Number.isFinite(seconds) && seconds > 0 ? Math.min(seconds, MAX_WASH_S) * 1000 : WASH_MS;
+}
+
+/**
  * The stage as it stands at a beat, folded from the ops of every beat up to and including it.
  *
  * Background and music persist until something changes them, so they cannot be read off the current beat alone.
@@ -1053,6 +1070,7 @@ export default function Story() {
 
 	const stage = useMemo(() => stageAt(beats, beatIndex), [beats, beatIndex]);
 	const shake = useMemo(() => (steppedBack ? null : shakeAt(beat)), [beat, steppedBack]);
+	const washMs = useMemo(() => washMsAt(beat), [beat]);
 	// While a choice waits, the dialogue box keeps the line said before it rather than the choice's own, often empty, page.
 	const said = useMemo(() => (pending ? lastSaid(beats, beatIndex, pageIndex) : null), [pending, beats, beatIndex, pageIndex]);
 	const fade = !steppedBack && fadeAt(beat);
@@ -1650,7 +1668,9 @@ export default function Story() {
 				</Box>
 			) : phone ? (
 				<MobileStoryReader
-					scene={<Box sx={[styles.stage, { bgcolor: stage.blankedTo === "white" ? "#ffffff" : "#000000" }, shake ? shakeSx(shake, beatIndex) : {}]}>{stageLayers}</Box>}
+					scene={
+						<Box sx={[styles.stage, { bgcolor: stage.blankedTo === "white" ? "#ffffff" : "#000000", "--wash": `${washMs}ms` }, shake ? shakeSx(shake, beatIndex) : {}]}>{stageLayers}</Box>
+					}
 					corner={corner}
 					controls={phoneControls}
 					lines={readLines}
@@ -1670,7 +1690,14 @@ export default function Story() {
 				/>
 			) : (
 				<Box ref={playerRef} sx={[styles.player, cinema ? styles.playerCinema : {}]} onClick={advance} onClickCapture={interact} role="button" tabIndex={-1} aria-label="Advance the scene">
-					<Box sx={[styles.stage, cinema ? styles.stageCinema : {}, { bgcolor: stage.blankedTo === "white" ? "#ffffff" : "#000000" }, shake ? shakeSx(shake, beatIndex) : {}]}>
+					<Box
+						sx={[
+							styles.stage,
+							cinema ? styles.stageCinema : {},
+							{ bgcolor: stage.blankedTo === "white" ? "#ffffff" : "#000000", "--wash": `${washMs}ms` },
+							shake ? shakeSx(shake, beatIndex) : {}
+						]}
+					>
 						{stageLayers}
 
 						{fullscreen.supported && stacked && (
