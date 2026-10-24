@@ -1,0 +1,29 @@
+name: Docker build
+
+# The Pages deploy and local builds read the whole checkout, so only a real image build sees what `.dockerignore` leaves out.
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer push to the same branch makes the older check pointless.
+concurrency:
+  group: docker-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - run: docker build -t gfl-archive .
+
+      # Serve the image and request a page, so a broken nginx config fails here too and not only a broken build.
+      - run: |
+          docker run -d -p 8080:80 gfl-archive
+          curl --fail --silent --show-error --retry 5 --retry-all-errors --retry-delay 1 -o /dev/null -o /dev/null http://localhost:8080/ http://localhost:8080/tdoll/1
