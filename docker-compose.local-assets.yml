@@ -1,0 +1,8 @@
+# Optional override that serves the local gfl-archive-assets folder in `GFL_ASSETS_DIR` at /gfl-assets/. See the README.
+services:
+  archive:
+    build:
+      args:
+        VITE_ASSET_BASE_URL: /gfl-assets/
+    volumes:
+      - ${GFL_ASSETS_DIR:?set GFL_ASSETS_DIR in .env to your gfl-archive-assets folder}:/usr/share/nginx/html/gfl-assets:ro

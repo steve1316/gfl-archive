@@ -47,6 +47,11 @@ pnpm test:data    # data pipeline tests
 To serve the production build the way GitHub Pages does, but from the site root, run `docker compose up --build` and open http://localhost:8088.
 
 Art and animations are not in this repo. They load from [gfl-archive-assets](https://github.com/steve1316/gfl-archive-assets), set by `VITE_ASSET_BASE_URL` in `.env`.
+To serve a downloaded copy of the art from the Docker container instead, set `GFL_ASSETS_DIR` in `.env` to that folder, then run:
+
+```sh
+docker compose -f docker-compose.yml -f docker-compose.local-assets.yml up --build
+```
 
 ## How it works
 
