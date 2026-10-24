@@ -3,3 +3,7 @@ build
 .git
 .github
 src/images
+tools/assets/.cache
+tools/assets/.staging*
+tools/assets/.tools
+tools/data/.cache
