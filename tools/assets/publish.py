@@ -82,6 +82,10 @@ USER_AGENT = "gfl-archive-refresh/1.0 (fan site asset pipeline; https://github.c
 LIVE_TIMEOUT_SECONDS = 20 * 60
 LIVE_INTERVAL_SECONDS = 30
 
+# How many times a GitHub API read is tried before giving up on a 5xx or network error, and the first wait between tries, doubled each retry.
+API_ATTEMPTS = 4
+API_RETRY_SECONDS = 5
+
 # Commit message labels whose plural is not the singular plus a trailing `s`.
 IRREGULAR_PLURALS = {"fairy": "fairies", "live2d fairy": "live2d fairies"}
 
@@ -557,16 +561,18 @@ def prepare(clone, assets_root, manifest_path, spine_index_path, res_version, re
 # Incremental add
 
 
-def fetch_tree_sizes(repo_title, branch="main", token=None, opener=urllib.request.urlopen):
+def fetch_tree_sizes(repo_title, branch="main", token=None, opener=urllib.request.urlopen, sleep=time.sleep):
     """Read every file size of a repo branch from the GitHub Git Trees API.
 
     A blobless clone cannot report sizes without downloading every blob, so the hosted total comes from the API instead.
+    A 5xx or network error is retried with backoff up to `API_ATTEMPTS` times, since the API fails transiently. A 4xx exits at once.
 
     Args:
         repo_title: The repo name, such as `gfl-archive-assets`.
         branch: The branch to list.
         token: Optional GitHub token, which raises the API rate limit.
         opener: Callable standing in for `urllib.request.urlopen` in tests.
+        sleep: Callable standing in for `time.sleep` in tests.
 
     Returns:
         A dict of size in bytes by path, blobs only.
@@ -579,13 +585,19 @@ def fetch_tree_sizes(repo_title, branch="main", token=None, opener=urllib.reques
     )
     if token:
         request.add_header("Authorization", f"Bearer {token}")
-    try:
-        with opener(request, timeout=60) as response:
-            body = json.load(response)
-    except urllib.error.HTTPError as error:
-        sys.exit(f"reading the tree of {repo_title} from the GitHub API failed: HTTP {error.code}")
-    except urllib.error.URLError as error:
-        sys.exit(f"reading the tree of {repo_title} from the GitHub API failed: {error.reason}")
+    for attempt in range(1, API_ATTEMPTS + 1):
+        try:
+            with opener(request, timeout=60) as response:
+                body = json.load(response)
+            break
+        except urllib.error.HTTPError as error:
+            failure, transient = f"HTTP {error.code}", error.code >= 500
+        except urllib.error.URLError as error:
+            failure, transient = str(error.reason), True
+        if not transient or attempt == API_ATTEMPTS:
+            sys.exit(f"reading the tree of {repo_title} from the GitHub API failed: {failure}")
+        print(f"reading the tree of {repo_title} failed ({failure}), retrying ({attempt}/{API_ATTEMPTS - 1})", file=sys.stderr)
+        sleep(API_RETRY_SECONDS * 2 ** (attempt - 1))
     if body.get("truncated"):
         sys.exit(f"the Git Trees API truncated the listing of {repo_title}, so its size cannot be checked")
     return {entry["path"]: entry["size"] for entry in body["tree"] if entry["type"] == "blob"}

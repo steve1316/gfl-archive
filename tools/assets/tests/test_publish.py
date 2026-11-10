@@ -735,15 +735,54 @@ class TreeSizeTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             publish.fetch_tree_sizes("gfl-archive-assets", opener=self.response({"truncated": True, "tree": []}))
 
+    def failing(self, codes, body=None):
+        """Build a fake `urlopen` that raises one HTTP error per code, then returns a JSON body.
+
+        Args:
+            codes: The HTTP status codes to raise, in order.
+            body: The JSON value returned once the codes run out, or None to keep raising the last code.
+
+        Returns:
+            A `(opener, calls)` pair: the callable standing in for `urllib.request.urlopen`, and the list it appends each request to.
+        """
+        calls = []
+        good = self.response(body)
+
+        def opener(request, timeout=None):
+            calls.append(request)
+            if body is None or len(calls) <= len(codes):
+                code = codes[min(len(calls), len(codes)) - 1]
+                raise urllib.error.HTTPError("https://api.github.com/x", code, "error", {}, None)
+            return good(request, timeout)
+
+        return opener, calls
+
+    def fetch(self, opener):
+        """Read the tree sizes through a fake opener, without waiting between retries.
+
+        Args:
+            opener: The callable standing in for `urllib.request.urlopen`.
+
+        Returns:
+            The sizes `fetch_tree_sizes` returns.
+        """
+        return publish.fetch_tree_sizes("gfl-archive-assets", opener=opener, sleep=lambda _seconds: None)
+
+    def test_server_error_retries(self):
+        """A transient 5xx is retried, and the next good response is used."""
+        opener, calls = self.failing([500], {"truncated": False, "tree": [{"path": "a", "type": "blob", "size": 3}]})
+        self.assertEqual(self.fetch(opener), {"a": 3})
+        self.assertEqual(len(calls), 2)
+
     def test_http_error_exits(self):
-        """An HTTP error from the API exits with a readable message instead of a raw traceback."""
-
-        def failing_opener(_request, timeout=None):
-            raise urllib.error.HTTPError("https://api.github.com/x", 403, "rate limited", {}, None)
-
-        with self.assertRaises(SystemExit):
-            publish.fetch_tree_sizes("gfl-archive-assets", opener=failing_opener)
-
+        """A 5xx that persists exits after the last attempt, and a 4xx on the first, with a readable message instead of a raw traceback."""
+        for code, attempts in ((502, publish.API_ATTEMPTS), (403, 1), (404, 1)):
+            with self.subTest(code=code):
+                opener, calls = self.failing([code])
+                with self.assertRaises(SystemExit) as caught:
+                    self.fetch(opener)
+                self.assertIn(f"HTTP {code}", str(caught.exception.code))
+                self.assertEqual(len(calls), attempts)
 
 if __name__ == "__main__":
     unittest.main()
