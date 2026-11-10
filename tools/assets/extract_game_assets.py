@@ -1144,7 +1144,8 @@ def extract_story_sprite_items(items, cache_dir, staging, loader=unity_load):
                 continue
             # A sprite listed in `story-sprite-sources.json` names its texture outright, since neither naming rule reaches it.
             source = item.get("texture")
-            for role, suffix in (("full", ""), ("full_d", "_D")):
+            # A sprite kept only for a new expression already has its plain and damaged poses hosted.
+            for role, suffix in () if item.get("plainPublished") else (("full", ""), ("full_d", "_D")):
                 wanted = [f"{source}{suffix}".lower()] if source else []
                 if alias and not suffix:
                     wanted.append(alias.lower())

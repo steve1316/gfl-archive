@@ -1393,7 +1393,12 @@ def select_new_items(items, targets):
             if item.get("expression"):
                 keep = f"story_sprite:{stem}_{item['expression']}" not in published
             else:
-                keep = any(name not in published for name in [f"story_sprite:{stem}"] + [f"story_sprite:{stem}_{index}" for index in item.get("expressions", [])])
+                plain_published = f"story_sprite:{stem}" in published
+                expressions = [index for index in item.get("expressions", []) if f"story_sprite:{stem}_{index}" not in published]
+                keep = not plain_published or bool(expressions)
+                # Narrowed to the unpublished files, since the merge refuses any file that is already hosted.
+                if keep and plain_published:
+                    item = {**item, "expressions": expressions, "plainPublished": True}
         elif tier in ("story_background", "story_ui"):
             keep = item["key"].lower() not in targets.get("story", set())
         elif tier == "live2d":

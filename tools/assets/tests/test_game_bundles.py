@@ -370,6 +370,18 @@ class Live2dTargetTests(unittest.TestCase):
         targets = game_bundles.new_targets([], [], manifest, hocs=hocs, fairies=fairies)
         self.assertEqual(targets["live2d"], {("fairy", 3), ("hoc", 1)})
 
+    def test_select_new_items_narrows_a_story_sprite_to_its_unpublished_files(self):
+        """A sprite kept for a new expression carries only the unpublished ones, and marks its hosted plain pose so it is not rewritten."""
+        targets = {"story": {"story_sprite:falcon", "story_sprite:falcon_1", "story_sprite:k5"}}
+        items = [
+            {"key": "story_sprite:Falcon", "tier": "story_sprite", "prefab": "Falcon", "expressions": [1, 2]},
+            {"key": "story_sprite:K5", "tier": "story_sprite", "prefab": "K5", "expressions": []},
+            {"key": "story_sprite:New", "tier": "story_sprite", "prefab": "New", "expressions": [3]},
+        ]
+        selected = game_bundles.select_new_items(items, targets)
+        self.assertEqual([(item["prefab"], item["expressions"], item.get("plainPublished", False)) for item in selected], [("Falcon", [2], True), ("New", [3], False)])
+        self.assertEqual(items[0]["expressions"], [1, 2])
+
     def test_select_new_items_keeps_live2d_items_in_the_live2d_target_set(self):
         """A live2d item is kept only when its own `(kind, id)` pair is in `targets["live2d"]` - fairy 1's Live2D model is already listed
         in the manifest, so its item is dropped, while fairy 3's and HOC 1's are still targets and kept."""
