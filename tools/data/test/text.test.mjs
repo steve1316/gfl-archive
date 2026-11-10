@@ -11,7 +11,13 @@ test("parses CRLF lines, splits on the first comma and strips leading BOMs", () 
 });
 
 test("unescapes //c and //n", () => {
-	assert.equal(unescapeText("NIXOO//cAi Nonaka//nline"), "NIXOO,Ai Nonaka\nline");
+	assert.equal(unescapeText("NIXOO//cAi Nonaka//nline"), "NIXOO, Ai Nonaka\nline");
+});
+
+test("spaces a comma glued to the next word and a comma right after a full stop", () => {
+	assert.equal(unescapeText("armor//cMaximum of 300 points"), "armor, Maximum of 300 points");
+	assert.equal(unescapeText("reduced by 30 points.//c30% chance"), "reduced by 30 points. 30% chance");
+	assert.equal(unescapeText("deals 1//c000 damage"), "deals 1,000 damage");
 });
 
 test("strips color markup but keeps its text", () => {

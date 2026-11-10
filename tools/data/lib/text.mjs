@@ -20,11 +20,19 @@ export function parseTextTable(source) {
 /**
  * Undo the text tables' escapes. `//c` is a comma and `//n` a newline. A leftover `// ` is an upstream typo for a comma, as in "damage// rate of fire".
  *
+ * Upstream often drops the space after `//c` ("armor//cMaximum") or follows a full stop with one ("30 points.//c30%"). Both are given normal spacing.
+ * Digits after a comma are left alone so numbers like "1,000" survive.
+ *
  * @param {string} value An escaped value.
  * @returns {string} The plain text.
  */
 export function unescapeText(value) {
-	return value.replaceAll("//c", ",").replaceAll("//n", "\n").replaceAll("// ", ", ");
+	return value
+		.replaceAll("//c", ",")
+		.replaceAll("//n", "\n")
+		.replaceAll("// ", ", ")
+		.replace(/\.,[ \t]*/g, ". ")
+		.replace(/,(?=[A-Za-z])/g, ", ");
 }
 
 /**
