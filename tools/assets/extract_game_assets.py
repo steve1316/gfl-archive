@@ -63,7 +63,7 @@ from PIL import Image
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, TOOLS_DIR)
 
-from game_bundles import BUNDLE_CACHE_DIR, BYTES_PER_MB, EXPECTED_MISSING_RIGS, INVENTORY_PATH, REPO_ROOT, SITE_DATA_DIR, read_json  # noqa: E402
+from game_bundles import BUNDLE_CACHE_DIR, BYTES_PER_MB, EXPECTED_MISSING_RIGS, INVENTORY_PATH, REPO_ROOT, SITE_DATA_DIR, bundle_dependencies, read_json, story_picture_refs, unity_load  # noqa: E402
 
 
 # //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -579,20 +579,6 @@ def parse_hosted_card(filename):
 # Bundle access
 
 
-def unity_load(path):
-    """Open one bundle with UnityPy.
-
-    Args:
-        path: The `.ab` file.
-
-    Returns:
-        The UnityPy environment.
-    """
-    import UnityPy
-
-    return UnityPy.load(path)
-
-
 def load_textures(bundle_names, cache_dir, loader=unity_load, kind="Texture2D"):
     """Index the objects of one kind in some bundles by bundle name and lowercased container path.
 
@@ -1042,6 +1028,69 @@ def story_expression_by_shape(textures, prefab, index):
     return next((name for name in textures if flatten(name) in wanted), None)
 
 
+def open_story_links(bundle, cache_dir, loader):
+    """Read a prefab bundle's picture references and open the dependency files they point into.
+
+    Dependencies are read from the prefab bundle itself rather than the inventory, so a rebuilt inventory cannot lose them. Only
+    dependencies already in the cache are opened, and only when some prefab in the bundle draws its art from outside it.
+
+    Args:
+        bundle: The prefab bundle name.
+        cache_dir: The bundle cache directory.
+        loader: Callable opening one `.ab` file.
+
+    Returns:
+        A `(refs, files)` pair: `story_picture_refs` for the bundle, and its dependencies' serialized files keyed by lowercased CAB name.
+        Both are empty when the bundle cannot be opened.
+    """
+    try:
+        env = loader(os.path.join(cache_dir, f"{bundle}.ab"))
+        refs = story_picture_refs(env)
+        files = {}
+        if any(file_id for ref in refs.values() for file_id, _path_id in ref["pic"]):
+            paths = [os.path.join(cache_dir, f"{name}.ab") for name in bundle_dependencies(env)]
+            for dependency in (loader(path) for path in paths if os.path.exists(path)):
+                for holder in dependency.files.values():
+                    files.update((name.lower(), file) for name, file in holder.files.items())
+        return refs, files
+    except Exception as exc:
+        print(f"story dependencies of {bundle} could not be read: {exc!r}", file=sys.stderr)
+        return {}, {}
+
+
+def dependency_story_image(links, prefab, slot):
+    """Rebuild a story pose whose colour sprite sits in a dependency bundle while its alpha mask stays in the prefab's own.
+
+    The colour texture is opaque, so the mask is merged at texture size before the sprite's rect is cropped out of it.
+
+    Args:
+        links: The `(refs, files)` pair from `open_story_links`.
+        prefab: The prefab name a script refers to.
+        slot: The expression index, 0 for the plain pose.
+
+    Returns:
+        The RGBA image, or None when the pose is not drawn from a dependency or cannot be found there.
+    """
+    refs, files = links
+    ref = refs.get(prefab.lower())
+    if not ref or len(ref["pic"]) <= slot or len(ref["alpha"]) <= slot:
+        return None
+    (file_id, sprite_id), (alpha_file, alpha_id) = ref["pic"][slot], ref["alpha"][slot]
+    own = ref["file"]
+    if file_id == 0 or alpha_file != 0 or alpha_id not in own.objects:
+        return None
+    # Path IDs are only unique within one serialized file, so the sprite is looked up in the exact CAB the reference names.
+    target = files.get(own.externals[file_id - 1].path.rsplit("/", 1)[-1].lower())
+    if target is None or sprite_id not in target.objects:
+        return None
+    sprite = target.objects[sprite_id].read()
+    merged = merge_alpha(sprite.m_RD.texture.read().image, own.objects[alpha_id].read().image)
+    rect = sprite.m_RD.textureRect
+    # Unity measures the rect from the bottom left, PIL from the top left.
+    left, top = round(rect.x), merged.height - round(rect.y) - round(rect.height)
+    return merged.crop((left, top, left + round(rect.width), top + round(rect.height)))
+
+
 def extract_story_sprite_items(items, cache_dir, staging, loader=unity_load):
     """Extract each story character's standing art, and the damaged pose where the character has one.
 
@@ -1074,6 +1123,8 @@ def extract_story_sprite_items(items, cache_dir, staging, loader=unity_load):
         # One case-folded index per bundle, so a prefab can be matched however the artist happened to capitalise its texture.
         folded = {name.lower(): image for name, image in textures.items()}
         expressions = None
+        # Opened on the first pose no naming rule finds, and dropped with the bundle.
+        links = None
         for item in bundle_items:
             prefab = item["prefab"]
             stem = story_sprite_name(prefab)
@@ -1116,6 +1167,10 @@ def extract_story_sprite_items(items, cache_dir, staging, loader=unity_load):
                     shaped = story_texture_by_shape(textures, prefab)
                     if shaped:
                         image = textures[shaped]
+                # Then the prefabs that keep only alpha masks, whose colour sprite sits in a dependency bundle.
+                if image is None and role == "full":
+                    links = links or open_story_links(bundle, cache_dir, loader)
+                    image = dependency_story_image(links, prefab, 0)
                 if image is None:
                     # Only the plain pose is required; a character without a damaged one is normal, not a gap.
                     if role == "full":
@@ -1140,6 +1195,9 @@ def extract_story_sprite_items(items, cache_dir, staging, loader=unity_load):
                 if image is None:
                     shaped = story_expression_by_shape(textures, prefab, index)
                     image = textures[shaped] if shaped else None
+                if image is None:
+                    links = links or open_story_links(bundle, cache_dir, loader)
+                    image = dependency_story_image(links, prefab, index)
                 if image is None:
                     continue
                 try:

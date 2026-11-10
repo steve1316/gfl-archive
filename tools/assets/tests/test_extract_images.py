@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 
 from PIL import Image
 
@@ -824,3 +825,63 @@ class StoryExpressionShapeTests(unittest.TestCase):
         textures = {"Pic_Saki_R_2": object(), "Pic_Saki_3": object()}
         self.assertIsNone(extract.story_expression_by_shape(textures, "NPC-Saki", 2))
         self.assertEqual(extract.story_expression_by_shape(textures, "NPC-Saki", 3), "Pic_Saki_3")
+
+
+# //////////////////////////////////////////////////////////////////////////////////////////////////
+# //////////////////////////////////////////////////////////////////////////////////////////////////
+# Story sprites drawn from a dependency
+
+
+def serialized_file(objects, externals=()):
+    """Build a fake serialized file.
+
+    Args:
+        objects: Map of path ID to the payload its reader's `read` returns.
+        externals: CAB names of file IDs 1, 2 and so on.
+
+    Returns:
+        A namespace shaped like a UnityPy `SerializedFile`.
+    """
+    readers = {path_id: SimpleNamespace(read=lambda data=data: data) for path_id, data in objects.items()}
+    return SimpleNamespace(objects=readers, externals=[SimpleNamespace(path=f"archive:/{cab}/{cab}") for cab in externals])
+
+
+class StoryDependencySpriteTests(unittest.TestCase):
+    """A prefab that keeps only alpha masks is drawn from the dependency holding its colour sprite."""
+
+    def build(self, pic_file_id=1):
+        """Build the links for a prefab whose colour sprite sits in CAB `cab-abc`.
+
+        Args:
+            pic_file_id: The file ID of the prefab's first `pic` entry.
+
+        Returns:
+            The `(refs, files)` pair `open_story_links` would return.
+        """
+        mask = Image.new("L", (4, 4), 0)
+        mask.putpixel((0, 0), 255)
+        own = serialized_file({9: SimpleNamespace(image=mask)}, externals=["cab-abc"])
+        colour = Image.new("RGB", (8, 8), (200, 10, 10))
+        texture = SimpleNamespace(read=lambda: SimpleNamespace(image=colour))
+        rect = SimpleNamespace(x=0.0, y=0.0, width=8.0, height=8.0)
+        sprite = SimpleNamespace(m_RD=SimpleNamespace(texture=texture, textureRect=rect))
+        # Another CAB reuses the sprite's path ID, which must not be picked up.
+        decoy = serialized_file({55: None})
+        refs = {"anna": {"pic": [(pic_file_id, 55)], "alpha": [(0, 9)], "file": own}}
+        return refs, {"cab-abc": serialized_file({55: sprite}), "cab-other": decoy}
+
+    def test_colour_comes_from_the_named_cab_and_alpha_from_the_prefab(self):
+        """The dependency's colour is merged with the prefab bundle's scaled mask."""
+        image = extract.dependency_story_image(self.build(), "Anna", 0)
+        self.assertEqual(image.size, (8, 8))
+        self.assertEqual(image.getpixel((7, 7)), (200, 10, 10, 0))
+        self.assertGreater(image.getpixel((0, 0))[3], 0)
+
+    def test_local_or_absent_art_is_not_followed(self):
+        """A `pic` inside the prefab bundle, an unknown prefab, a missing slot or an unopened CAB give nothing."""
+        self.assertIsNone(extract.dependency_story_image(self.build(pic_file_id=0), "Anna", 0))
+        self.assertIsNone(extract.dependency_story_image(self.build(), "Other", 0))
+        self.assertIsNone(extract.dependency_story_image(self.build(), "Anna", 3))
+        refs, files = self.build()
+        del files["cab-abc"]
+        self.assertIsNone(extract.dependency_story_image((refs, files), "Anna", 0))

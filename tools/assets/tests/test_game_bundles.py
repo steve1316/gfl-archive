@@ -9,6 +9,7 @@ import os
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -974,6 +975,75 @@ class NewTargetTests(unittest.TestCase):
                 "skin": set(),
             },
         )
+
+
+def unity_object(kind, path_id, tree):
+    """Build a fake UnityPy object reader exposing a type tree.
+
+    Args:
+        kind: Unity type name such as `MonoBehaviour`.
+        path_id: The object's path ID.
+        tree: The dict `read_typetree` returns.
+
+    Returns:
+        A namespace shaped like an object reader.
+    """
+    return SimpleNamespace(type=SimpleNamespace(name=kind), path_id=path_id, read_typetree=lambda: tree, assets_file="prefab-file")
+
+
+def avg_bundle(dependencies, prefabs):
+    """Build a fake `avgpicprefabs` bundle.
+
+    Args:
+        dependencies: The bundle's `m_Dependencies`.
+        prefabs: Map of prefab name to the `(file ID, path ID)` its first `pic` entry holds.
+
+    Returns:
+        A namespace shaped like a UnityPy environment.
+    """
+    objects = [unity_object("AssetBundle", 1, {"m_Dependencies": dependencies})]
+    for number, (name, pic) in enumerate(prefabs.items()):
+        owner = 100 + number
+        objects.append(unity_object("GameObject", owner, {"m_Name": name}))
+        tree = {"m_GameObject": {"m_FileID": 0, "m_PathID": owner}, "pic": [{"m_FileID": pic[0], "m_PathID": pic[1]}], "picAlpha": [{"m_FileID": 0, "m_PathID": 900 + number}]}
+        objects.append(unity_object("MonoBehaviour", 200 + number, tree))
+    return SimpleNamespace(objects=objects)
+
+
+class StoryDependencyTests(unittest.TestCase):
+    """A story prefab whose art sits in another bundle pulls that bundle's dependencies into the download."""
+
+    def test_picture_refs_are_keyed_by_the_owning_prefab(self):
+        """Each prefab maps to its own `pic` and `picAlpha` references and the file they are relative to."""
+        env = avg_bundle(["resource_fairy"], {"DJMAXSUEE": (1, 55), "Local": (0, 66)})
+        refs = game_bundles.story_picture_refs(env)
+        self.assertEqual(refs["djmaxsuee"], {"pic": [(1, 55)], "alpha": [(0, 900)], "file": "prefab-file"})
+        self.assertEqual(refs["local"]["pic"], [(0, 66)])
+
+    def test_only_bundles_drawing_art_from_outside_add_their_known_dependencies(self):
+        """External art adds the dependencies ResData ships. Local art, listed sources and unreadable bundles add none."""
+        envs = {"avg_a.ab": avg_bundle(["resource_fairy", "gone"], {"Outside": (1, 55)}), "avg_b.ab": avg_bundle(["character_x"], {"Inside": (0, 66)})}
+
+        def loader(path):
+            """Open a fake bundle, failing for unknown names.
+
+            Args:
+                path: The `.ab` path.
+
+            Returns:
+                The fake environment.
+            """
+            return envs[os.path.basename(path)]
+
+        items = [
+            {"tier": "story_sprite", "status": "resolved", "prefab": "Outside", "bundles": ["avg_a"]},
+            {"tier": "story_sprite", "status": "resolved", "prefab": "Inside", "bundles": ["avg_b"]},
+            {"tier": "story_sprite", "status": "resolved", "prefab": "Listed", "texture": "pic_Listed", "bundles": ["character_y"]},
+            {"tier": "story_sprite", "status": "resolved", "prefab": "Broken", "bundles": ["avg_c"]},
+        ]
+        names, failures = game_bundles.story_sprite_dependencies(items, {"resource_fairy": {}, "character_x": {}}, "", loader=loader)
+        self.assertEqual(names, {"resource_fairy"})
+        self.assertEqual([row["name"] for row in failures], ["avg_c"])
 
 
 if __name__ == "__main__":

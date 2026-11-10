@@ -875,6 +875,99 @@ def story_items(index, sprites, backgrounds):
     return items
 
 
+def unity_load(path):
+    """Open one bundle with UnityPy, imported late so the planning commands run without it.
+
+    Args:
+        path: The `.ab` file.
+
+    Returns:
+        The UnityPy environment.
+    """
+    import UnityPy
+
+    return UnityPy.load(path)
+
+
+def story_picture_refs(env):
+    """Map each story prefab in a bundle to the art its picture component points at.
+
+    Some AVG prefabs keep only alpha masks in their own bundle. Their component lists the colour sprites in `pic` and the masks in
+    `picAlpha`, one per expression, and a `pic` entry with a non-zero file ID lives in another bundle.
+
+    Args:
+        env: The loaded prefab bundle.
+
+    Returns:
+        A dict of lowercased prefab name to `{"pic": [...], "alpha": [...], "file": ...}`. The lists hold `(file ID, path ID)` pairs,
+        and `file` is the serialized file those IDs are relative to.
+    """
+    owners = {obj.path_id: obj.read_typetree().get("m_Name", "") for obj in env.objects if obj.type.name == "GameObject"}
+    refs = {}
+    for obj in env.objects:
+        if obj.type.name != "MonoBehaviour":
+            continue
+        try:
+            tree = obj.read_typetree()
+        except Exception:
+            continue
+        if not tree.get("pic"):
+            continue
+        owner = owners.get((tree.get("m_GameObject") or {}).get("m_PathID"), "").lower()
+        if owner:
+            pic = [(ref["m_FileID"], ref["m_PathID"]) for ref in tree["pic"]]
+            alpha = [(ref["m_FileID"], ref["m_PathID"]) for ref in tree.get("picAlpha") or []]
+            refs[owner] = {"pic": pic, "alpha": alpha, "file": obj.assets_file}
+    return refs
+
+
+def bundle_dependencies(env):
+    """Read the bundles a bundle depends on.
+
+    Args:
+        env: The loaded bundle.
+
+    Returns:
+        The `m_Dependencies` bundle names, empty when the bundle records none.
+    """
+    for obj in env.objects:
+        if obj.type.name == "AssetBundle":
+            return list(obj.read_typetree().get("m_Dependencies") or [])
+    return []
+
+
+def story_sprite_dependencies(items, index, cache_dir, loader=unity_load):
+    """Find the dependency bundles story sprite art lives in, for prefabs that keep only alpha masks themselves.
+
+    ResData records no dependencies, so the prefab bundles must already be cached. The file a `pic` entry points at is named by an
+    internal CAB hash rather than a bundle name, so every dependency the bundle declares is fetched and the extractor matches the CAB.
+
+    Args:
+        items: Inventory items.
+        index: The bundle index from `load_index`, used to drop dependencies ResData does not ship.
+        cache_dir: The bundle cache directory.
+        loader: Callable opening one `.ab` file, replaceable in tests.
+
+    Returns:
+        A `(names, failures)` pair: the dependency bundle names to fetch, and `{"name", "error"}` rows for prefab bundles that failed to open.
+    """
+    by_bundle = {}
+    for item in items:
+        # A sprite listed in the sources file already names its own texture and bundle.
+        if item["tier"] == "story_sprite" and item["status"] == "resolved" and not item.get("texture") and len(item["bundles"]) == 1:
+            by_bundle.setdefault(item["bundles"][0], set()).add(item["prefab"].lower())
+    names, failures = set(), []
+    for bundle, prefabs in sorted(by_bundle.items()):
+        try:
+            env = loader(os.path.join(cache_dir, f"{bundle}.ab"))
+            refs = story_picture_refs(env)
+            if any(file_id for prefab in prefabs for file_id, _path_id in refs.get(prefab, {}).get("pic", [])):
+                names.update(name for name in bundle_dependencies(env) if name in index)
+        except Exception as exc:
+            failures.append({"name": bundle, "error": repr(exc)})
+    return names, failures
+
+
 def faction_icon_items(index):
     """Resolve one emblem per faction.
 
@@ -1342,6 +1435,19 @@ def is_expected_gap(item):
     return item["key"] in EXPECTED_MISSING_RIGS or item["key"] in EXPECTED_MISSING_ART or (item["tier"] == "skill_icon" and item.get("code", "").lower() in EXPECTED_MISSING_SKILL_CODES)
 
 
+def bundle_record(index, name):
+    """Keep the fields of one indexed bundle that the inventory records for downloading and verifying it.
+
+    Args:
+        index: The bundle index from `load_index`.
+        name: Bundle name.
+
+    Returns:
+        A dict with `resname`, `sizeOriginal` and, when known, `sha1`.
+    """
+    return {key: index[name][key] for key in ("resname", "sizeOriginal", "sha1") if key in index[name]}
+
+
 def summarise(items, index, include_ui=True):
     """Total the items per tier and collect the bundles to download.
 
@@ -1367,7 +1473,7 @@ def summarise(items, index, include_ui=True):
         elif item["status"] == "unresolved":
             entry = {"key": item["key"], "reason": item.get("reason", "no bundle holds the files")}
             summary["unresolved_expected" if is_expected_gap(item) else "unresolved_unexpected"].append(entry)
-    bundles = {name: {key: index[name][key] for key in ("resname", "sizeOriginal", "sha1") if key in index[name]} for name in sorted(names)}
+    bundles = {name: bundle_record(index, name) for name in sorted(names)}
     summary["bundle_count"] = len(bundles)
     summary["download_bytes"] = sum(bundle["sizeOriginal"] for bundle in bundles.values())
     summary["download_mb"] = round(summary["download_bytes"] / BYTES_PER_MB, 1)
@@ -1837,6 +1943,16 @@ def main():
     if args.command == "download":
         started = time.monotonic()
         result = download_bundles(bundles, inventory["resUrl"], args.cache, workers=args.workers)
+        # A second pass, since a story prefab's dependencies are only known once the prefab bundle itself is cached.
+        index, _res_url = load_index(read_json(os.path.join(args.gf_data, "resdata_no_hash.json")))
+        dependencies, failures = story_sprite_dependencies(inventory["items"], index, args.cache)
+        extra = {name: bundle_record(index, name) for name in sorted(dependencies - set(bundles))}
+        bundles.update(extra)
+        more = download_bundles(extra, inventory["resUrl"], args.cache, workers=args.workers)
+        for key, value in more.items():
+            result[key] += value
+        result["failed"] += failures
+        print(f"story sprite dependencies: {len(dependencies)} bundles ({len(extra)} new)")
         minutes = (time.monotonic() - started) / 60
         print(
             f"downloaded {len(result['downloaded'])} ({result['bytes'] / BYTES_PER_MB:.1f} MB), skipped {len(result['skipped'])} "
