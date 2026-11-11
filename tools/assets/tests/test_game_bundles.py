@@ -1053,9 +1053,81 @@ class StoryDependencyTests(unittest.TestCase):
             {"tier": "story_sprite", "status": "resolved", "prefab": "Listed", "texture": "pic_Listed", "bundles": ["character_y"]},
             {"tier": "story_sprite", "status": "resolved", "prefab": "Broken", "bundles": ["avg_c"]},
         ]
-        names, failures = game_bundles.story_sprite_dependencies(items, {"resource_fairy": {}, "character_x": {}}, "", loader=loader)
-        self.assertEqual(names, {"resource_fairy"})
+        needs, failures = game_bundles.story_dependency_needs(items, {"resource_fairy": {}, "character_x": {}}, "", loader=loader)
+        self.assertEqual(game_bundles.resolve_story_dependencies(needs, {}), {"resource_fairy"})
         self.assertEqual([row["name"] for row in failures], ["avg_c"])
+
+    def test_needs_cover_the_plain_pose_and_wanted_expressions_only(self):
+        """Only slot 0 and the expressions a script asks for name a CAB, and a kept plain pose drops slot 0."""
+        env = avg_bundle(["character_x", "character_y"], {"Many": (1, 55)})
+        tree = next(obj.read_typetree() for obj in env.objects if obj.type.name == "MonoBehaviour")
+        tree["pic"] = [{"m_FileID": 1, "m_PathID": 1}, {"m_FileID": 2, "m_PathID": 2}, {"m_FileID": 2, "m_PathID": 3}]
+        env.objects[-1].assets_file = SimpleNamespace(externals=[SimpleNamespace(path="archive:/CAB-aa/CAB-aa"), SimpleNamespace(path="archive:/CAB-bb/CAB-bb")])
+        index = {"character_x": {}, "character_y": {}}
+        cases = [({}, {"cab-aa"}), ({"expressions": [2]}, {"cab-aa", "cab-bb"}), ({"expressions": [2], "plainPublished": True}, {"cab-bb"})]
+        for extra, wanted in cases:
+            with self.subTest(extra=extra):
+                item = {"tier": "story_sprite", "status": "resolved", "prefab": "Many", "bundles": ["avg_a"], **extra}
+                needs, _failures = game_bundles.story_dependency_needs([item], index, "", loader=lambda _path: env)
+                self.assertEqual(needs, [{"cabs": wanted, "dependencies": ["character_x", "character_y"]}])
+
+    def test_mapped_cabs_fetch_one_bundle_and_unknown_ones_skip_known_bundles(self):
+        """A CAB the map knows fetches its bundle alone. An unknown CAB fetches only the dependencies the map has not seen."""
+        needs = [{"cabs": {"cab-aa"}, "dependencies": ["character_x", "character_y"]}, {"cabs": {"cab-new"}, "dependencies": ["character_x", "character_y", "character_z"]}]
+        cabs = {"character_x": "cab-aa", "character_y": "cab-bb"}
+        self.assertEqual(game_bundles.resolve_story_dependencies(needs, cabs), {"character_x", "character_z"})
+        # With no map at all, every dependency is fetched, as before the map existed.
+        self.assertEqual(game_bundles.resolve_story_dependencies(needs, {}), {"character_x", "character_y", "character_z"})
+
+    def test_fetching_settles_after_learning_an_unknown_cab(self):
+        """An unknown CAB first fetches the unmapped dependencies, then learning them maps it, and nothing is fetched twice."""
+        needs = [{"cabs": {"cab-new"}, "dependencies": ["character_x", "character_y", "character_z"]}]
+        cabs = {"character_x": "cab-aa"}
+        held = {"character_y": "cab-new", "character_z": "cab-zz"}
+        calls = []
+
+        def download(pending):
+            """Pretend to download, recording each pass.
+
+            Args:
+                pending: The bundles to fetch.
+
+            Returns:
+                A `download_bundles` shaped result.
+            """
+            calls.append(sorted(pending))
+            return {"downloaded": sorted(pending), "skipped": [], "migrated": [], "failed": [], "bytes": 0}
+
+        def loader(path):
+            """Open a fake dependency holding its CAB.
+
+            Args:
+                path: The `.ab` path.
+
+            Returns:
+                A namespace shaped like a UnityPy environment.
+            """
+            name = os.path.basename(path)[: -len(".ab")]
+            return SimpleNamespace(files={name: SimpleNamespace(files={held[name].upper(): object()})})
+
+        with tempfile.TemporaryDirectory() as cache:
+            for name in held:
+                open(os.path.join(cache, f"{name}.ab"), "wb").close()
+            result = {"downloaded": [], "skipped": [], "migrated": [], "failed": [], "bytes": 0}
+            fetched = game_bundles.fetch_story_dependencies(needs, cabs, {}, {name: {} for name in held}, cache, download, result, loader=loader)
+        self.assertEqual(calls, [["character_y", "character_z"]])
+        self.assertEqual(fetched, {"character_y", "character_z"})
+        self.assertEqual(cabs, {"character_x": "cab-aa", "character_y": "cab-new", "character_z": "cab-zz"})
+
+    def test_learning_records_each_cached_bundles_cab(self):
+        """Cached bundles teach the map their serialized file, skipping `.resS` payloads, overwriting a stale entry."""
+        bundle = SimpleNamespace(files={"CAB-cc": object(), "CAB-cc.resS": object()})
+        env = SimpleNamespace(files={"character_x": bundle})
+        with tempfile.TemporaryDirectory() as cache:
+            open(os.path.join(cache, "character_x.ab"), "wb").close()
+            cabs = {"character_x": "cab-stale", "character_y": "cab-bb"}
+            game_bundles.learn_story_cabs(cabs, ["character_x", "character_gone"], cache, loader=lambda _path: env)
+            self.assertEqual(cabs, {"character_x": "cab-cc", "character_y": "cab-bb"})
 
 
 if __name__ == "__main__":

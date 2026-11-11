@@ -135,6 +135,10 @@ STORY_UI_BUNDLE = "atlasclips_avg"
 # Story sprites that live outside their own prefab bundle, keyed by prefab. See the file's own note for why they cannot be derived.
 STORY_SOURCES_PATH = os.path.join(TOOLS_DIR, "story-sprite-sources.json")
 
+# Which CAB (serialized file) each story sprite dependency bundle holds. A `pic` reference names only the CAB, and nothing derives the
+# bundle from it, so the map is learned from every dependency the download opens and committed by the refresh.
+STORY_CABS_PATH = os.path.join(TOOLS_DIR, "story-dependency-cabs.json")
+
 # A sprite resolved through `STORY_SOURCES_PATH` is matched by the texture's own filename rather than by the prefab's.
 STORY_SOURCE_ROLES = (("texture", ("{stem}.png", "{stem}.jpg"), True),)
 EQUIP_ROLES = (("icon", ("Equip/{stem}.png",), True), ("alpha", ("Equip/{stem}_Alpha.png",), False))
@@ -936,11 +940,25 @@ def bundle_dependencies(env):
     return []
 
 
-def story_sprite_dependencies(items, index, cache_dir, loader=unity_load):
-    """Find the dependency bundles story sprite art lives in, for prefabs that keep only alpha masks themselves.
+def external_cab(file, file_id):
+    """Name the CAB a non-zero file ID points into.
 
-    ResData records no dependencies, so the prefab bundles must already be cached. The file a `pic` entry points at is named by an
-    internal CAB hash rather than a bundle name, so every dependency the bundle declares is fetched and the extractor matches the CAB.
+    Args:
+        file: The serialized file the ID is relative to.
+        file_id: The reference's `m_FileID`, 1-based into the file's externals.
+
+    Returns:
+        The lowercased CAB name, or None when the file lists no such external.
+    """
+    externals = getattr(file, "externals", None) or []
+    return externals[file_id - 1].path.rsplit("/", 1)[-1].lower() if 0 < file_id <= len(externals) else None
+
+
+def story_dependency_needs(items, index, cache_dir, loader=unity_load):
+    """List the CABs each story sprite draws its art from outside its own bundle, with the dependencies that could hold them.
+
+    Only the poses the extractor can take from a dependency count: the plain pose, unless it is already hosted, and the expressions a
+    script asks for. ResData records no dependencies, so the prefab bundles must already be cached.
 
     Args:
         items: Inventory items.
@@ -949,23 +967,119 @@ def story_sprite_dependencies(items, index, cache_dir, loader=unity_load):
         loader: Callable opening one `.ab` file, replaceable in tests.
 
     Returns:
-        A `(names, failures)` pair: the dependency bundle names to fetch, and `{"name", "error"}` rows for prefab bundles that failed to open.
+        A `(needs, failures)` pair. Each need is `{"cabs", "dependencies"}` for one prefab with outside art, where `cabs` holds the CAB
+        names, None for one that cannot be named. Failures are `{"name", "error"}` rows for prefab bundles that failed to open.
     """
     by_bundle = {}
     for item in items:
         # A sprite listed in the sources file already names its own texture and bundle.
         if item["tier"] == "story_sprite" and item["status"] == "resolved" and not item.get("texture") and len(item["bundles"]) == 1:
-            by_bundle.setdefault(item["bundles"][0], set()).add(item["prefab"].lower())
-    names, failures = set(), []
-    for bundle, prefabs in sorted(by_bundle.items()):
+            by_bundle.setdefault(item["bundles"][0], []).append(item)
+    needs, failures = [], []
+    for bundle, bundle_items in sorted(by_bundle.items()):
         try:
             env = loader(os.path.join(cache_dir, f"{bundle}.ab"))
             refs = story_picture_refs(env)
-            if any(file_id for prefab in prefabs for file_id, _path_id in refs.get(prefab, {}).get("pic", [])):
-                names.update(name for name in bundle_dependencies(env) if name in index)
+            dependencies = [name for name in bundle_dependencies(env) if name in index]
+            if not dependencies:
+                continue
+            for item in bundle_items:
+                ref = refs.get(item["prefab"].lower())
+                if not ref:
+                    continue
+                slots = set(item.get("expressions", [])) | (set() if item.get("plainPublished") else {0})
+                cabs = {external_cab(ref["file"], ref["pic"][slot][0]) for slot in slots if slot < len(ref["pic"]) and ref["pic"][slot][0]}
+                if cabs:
+                    needs.append({"cabs": cabs, "dependencies": dependencies})
         except Exception as exc:
             failures.append({"name": bundle, "error": repr(exc)})
-    return names, failures
+    return needs, failures
+
+
+def resolve_story_dependencies(needs, cabs):
+    """Pick the dependency bundles to fetch for some needs.
+
+    A CAB the map knows fetches its bundle alone. An unknown one fetches every dependency of that prefab the map has not seen yet,
+    since a bundle the map knows holds some other CAB.
+
+    Args:
+        needs: The needs from `story_dependency_needs`.
+        cabs: The map of bundle name to CAB name.
+
+    Returns:
+        The set of dependency bundle names.
+    """
+    owners = {cab: name for name, cab in cabs.items()}
+    names = set()
+    for need in needs:
+        for cab in need["cabs"]:
+            owner = owners.get(cab)
+            if owner in need["dependencies"]:
+                names.add(owner)
+            else:
+                names.update(name for name in need["dependencies"] if name not in cabs)
+    return names
+
+
+def bundle_cab(env):
+    """Name the CAB a bundle holds.
+
+    Args:
+        env: The loaded bundle.
+
+    Returns:
+        The lowercased CAB name, or None when the bundle holds none. The `.resS` beside a CAB only carries texture bytes, so it is skipped.
+    """
+    for holder in env.files.values():
+        for name in holder.files:
+            if not name.lower().endswith(".ress"):
+                return name.lower()
+    return None
+
+
+def learn_story_cabs(cabs, names, cache_dir, loader=unity_load):
+    """Record the CAB each cached bundle holds, overwriting a stale entry.
+
+    Args:
+        cabs: The map of bundle name to CAB name, updated in place.
+        names: The bundle names to learn, skipping any not in the cache.
+        cache_dir: The bundle cache directory.
+        loader: Callable opening one `.ab` file, replaceable in tests.
+    """
+    for name in names:
+        path = os.path.join(cache_dir, f"{name}.ab")
+        cab = bundle_cab(loader(path)) if os.path.exists(path) else None
+        if cab:
+            cabs[name] = cab
+
+
+def fetch_story_dependencies(needs, cabs, bundles, index, cache_dir, download, result, loader=unity_load):
+    """Download the dependency bundles story sprites need, learning each one's CAB as it lands.
+
+    Each pass learns the CABs of what it downloaded, which can name an unknown CAB's bundle or correct a stale entry. The fetched set
+    only grows, so a pass with nothing new to fetch ends it.
+
+    Args:
+        needs: The needs from `story_dependency_needs`.
+        cabs: The map of bundle name to CAB name, updated in place.
+        bundles: The bundles the inventory already downloads, which are never fetched again.
+        index: The bundle index from `load_index`.
+        cache_dir: The bundle cache directory.
+        download: Callable taking `{name: record}` and returning a `download_bundles` result.
+        result: The download result to add each pass's counts to.
+        loader: Callable opening one `.ab` file, replaceable in tests.
+
+    Returns:
+        The set of dependency bundle names fetched.
+    """
+    fetched = set()
+    while pending := {name: bundle_record(index, name) for name in sorted(resolve_story_dependencies(needs, cabs) - fetched - set(bundles))}:
+        fetched.update(pending)
+        more = download(pending)
+        for key, value in more.items():
+            result[key] += value
+        learn_story_cabs(cabs, more["downloaded"], cache_dir, loader)
+    return fetched
 
 
 def faction_icon_items(index):
@@ -1720,6 +1834,20 @@ def read_cache_index(cache_dir):
     return read_json(path) if os.path.isfile(path) else {}
 
 
+def write_sorted_json(path, data, indent=1):
+    """Write a dict as JSON atomically, keys sorted so reruns give the same file.
+
+    Args:
+        path: The file to write.
+        data: The dict to write.
+        indent: The `json.dump` indent.
+    """
+    with open(f"{path}.tmp", "w", encoding="utf-8") as handle:
+        json.dump(dict(sorted(data.items())), handle, indent=indent)
+        handle.write("\n")
+    os.replace(f"{path}.tmp", path)
+
+
 def write_cache_index(cache_dir, index):
     """Write the cache index sidecar atomically, names sorted so reruns give the same file.
 
@@ -1727,11 +1855,7 @@ def write_cache_index(cache_dir, index):
         cache_dir: The bundle cache directory.
         index: The dict from `read_cache_index`, updated.
     """
-    path = os.path.join(cache_dir, CACHE_INDEX_NAME)
-    with open(f"{path}.tmp", "w", encoding="utf-8") as handle:
-        json.dump(dict(sorted(index.items())), handle, indent=1)
-        handle.write("\n")
-    os.replace(f"{path}.tmp", path)
+    write_sorted_json(os.path.join(cache_dir, CACHE_INDEX_NAME), index)
 
 
 def index_record(bundle, size):
@@ -1950,14 +2074,17 @@ def main():
         result = download_bundles(bundles, inventory["resUrl"], args.cache, workers=args.workers)
         # A second pass, since a story prefab's dependencies are only known once the prefab bundle itself is cached.
         index, _res_url = load_index(read_json(os.path.join(args.gf_data, "resdata_no_hash.json")))
-        dependencies, failures = story_sprite_dependencies(inventory["items"], index, args.cache)
-        extra = {name: bundle_record(index, name) for name in sorted(dependencies - set(bundles))}
-        bundles.update(extra)
-        more = download_bundles(extra, inventory["resUrl"], args.cache, workers=args.workers)
-        for key, value in more.items():
-            result[key] += value
+        needs, failures = story_dependency_needs(inventory["items"], index, args.cache)
+        cabs = read_json(STORY_CABS_PATH) if os.path.exists(STORY_CABS_PATH) else {}
+        before = dict(cabs)
+        # Bundles cached by an earlier run but never mapped. A mapped one is relearned only when it is downloaded again, as a rebuild would.
+        learn_story_cabs(cabs, sorted({name for need in needs for name in need["dependencies"]} - set(cabs)), args.cache)
+        fetched = fetch_story_dependencies(needs, cabs, bundles, index, args.cache, lambda pending: download_bundles(pending, inventory["resUrl"], args.cache, workers=args.workers), result)
+        if cabs != before:
+            write_sorted_json(STORY_CABS_PATH, cabs, indent="\t")
+        bundles.update({name: bundle_record(index, name) for name in fetched})
         result["failed"] += failures
-        print(f"story sprite dependencies: {len(dependencies)} bundles ({len(extra)} new)")
+        print(f"story sprite dependencies: {len(fetched)} new bundles, {len(cabs)} CABs mapped")
         minutes = (time.monotonic() - started) / 60
         print(
             f"downloaded {len(result['downloaded'])} ({result['bytes'] / BYTES_PER_MB:.1f} MB), skipped {len(result['skipped'])} "

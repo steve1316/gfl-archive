@@ -63,7 +63,7 @@ from PIL import Image
 TOOLS_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, TOOLS_DIR)
 
-from game_bundles import BUNDLE_CACHE_DIR, BYTES_PER_MB, EXPECTED_MISSING_RIGS, INVENTORY_PATH, REPO_ROOT, SITE_DATA_DIR, bundle_dependencies, read_json, story_picture_refs, unity_load  # noqa: E402
+from game_bundles import BUNDLE_CACHE_DIR, BYTES_PER_MB, EXPECTED_MISSING_RIGS, INVENTORY_PATH, REPO_ROOT, SITE_DATA_DIR, bundle_dependencies, external_cab, read_json, story_picture_refs, unity_load  # noqa: E402
 
 
 # //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1080,7 +1080,7 @@ def dependency_story_image(links, prefab, slot):
     if file_id == 0 or alpha_file != 0 or alpha_id not in own.objects:
         return None
     # Path IDs are only unique within one serialized file, so the sprite is looked up in the exact CAB the reference names.
-    target = files.get(own.externals[file_id - 1].path.rsplit("/", 1)[-1].lower())
+    target = files.get(external_cab(own, file_id))
     if target is None or sprite_id not in target.objects:
         return None
     sprite = target.objects[sprite_id].read()

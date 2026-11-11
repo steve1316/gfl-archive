@@ -210,7 +210,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          git add tools/data/upstream.lock.json src/data assets-manifest.json
+          git add tools/data/upstream.lock.json src/data assets-manifest.json tools/assets/story-dependency-cabs.json
           if git diff --cached --quiet; then
             echo "nothing changed"
             echo "deploy=false" >> "$GITHUB_OUTPUT"
