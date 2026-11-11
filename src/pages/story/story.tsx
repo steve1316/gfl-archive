@@ -25,11 +25,13 @@ import {
 	STORY_END_Z,
 	StoryCorner,
 	StoryEndCard,
+	SelectableText,
 	StoryLogPanel,
 	StorySettingsCard,
 	StorySettingsPanel,
 	StorySkipIcon,
 	fillBelowNavbar,
+	isTextClick,
 	useAudioGate,
 	useFullscreen,
 	useIsMobile,
@@ -1812,7 +1814,15 @@ export default function Story() {
 					sx={READER_SX}
 				/>
 			) : (
-				<Box ref={playerRef} sx={[styles.player, cinema ? styles.playerCinema : {}]} onClick={advance} onClickCapture={interact} role="button" tabIndex={-1} aria-label="Advance the scene">
+				<Box
+					ref={playerRef}
+					sx={[styles.player, cinema ? styles.playerCinema : {}]}
+					onClick={(event) => !isTextClick(event) && advance()}
+					onClickCapture={interact}
+					role="button"
+					tabIndex={-1}
+					aria-label="Advance the scene"
+				>
 					<Box
 						sx={[
 							styles.stage,
@@ -1891,8 +1901,10 @@ export default function Story() {
 						<Box sx={[styles.transcript, cinema ? styles.transcriptCinema : {}]} aria-hidden>
 							{transcript.map((entry, index) => (
 								<Typography key={`${entry.speaker ?? ""}-${index}`} sx={styles.transcriptLine}>
-									{entry.speaker && <Box component="span" sx={styles.transcriptSpeaker}>{`${entry.speaker}: `}</Box>}
-									{entry.text}
+									<SelectableText>
+										{entry.speaker && <Box component="span" sx={styles.transcriptSpeaker}>{`${entry.speaker}: `}</Box>}
+										{entry.text}
+									</SelectableText>
 								</Typography>
 							))}
 						</Box>
@@ -1903,10 +1915,10 @@ export default function Story() {
 								<Box sx={styles.panelBody} style={{ fontSize: lineFontSize(cinema, settings.textSize) }}>
 									{/* Always drawn, so narration starts on the same line a spoken beat does rather than riding up into the frame. */}
 									<Typography variant="subtitle2" sx={styles.speaker} aria-hidden={!(said?.beat ?? beat)?.speaker}>
-										{(said?.beat ?? beat)?.speaker ?? ""}
+										<SelectableText>{(said?.beat ?? beat)?.speaker ?? ""}</SelectableText>
 									</Typography>
 									<Typography variant="body1" sx={cinema ? styles.slabText : styles.text} style={{ fontSize: "1em" }}>
-										{said ? renderTyped(said.page, pageText(said.page).length) : renderTyped(page, typed)}
+										<SelectableText>{said ? renderTyped(said.page, pageText(said.page).length) : renderTyped(page, typed)}</SelectableText>
 										{!done && !said && (
 											<Box component="span" sx={styles.caret}>
 												|
