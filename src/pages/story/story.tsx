@@ -31,7 +31,7 @@ import {
 	StorySettingsPanel,
 	StorySkipIcon,
 	fillBelowNavbar,
-	isTextClick,
+	readOnHandlers,
 	useAudioGate,
 	useFullscreen,
 	useIsMobile,
@@ -1817,7 +1817,7 @@ export default function Story() {
 				<Box
 					ref={playerRef}
 					sx={[styles.player, cinema ? styles.playerCinema : {}]}
-					onClick={(event) => !isTextClick(event) && advance()}
+					{...readOnHandlers(advance)}
 					onClickCapture={interact}
 					role="button"
 					tabIndex={-1}
