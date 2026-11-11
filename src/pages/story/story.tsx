@@ -41,7 +41,7 @@ import type { StoryChoice, StoryControl, StoryCornerProps, StoryCurrentLine, Sto
 
 import DotWipe from "../../components/DotWipe";
 import LoadError from "../../components/LoadError";
-import StoryPanelFrame, { AMBER } from "../../components/StoryPanelFrame";
+import StoryPanelFrame, { AMBER, BAR_BOTTOM_SHARE, FRAME_INSET_PCT } from "../../components/StoryPanelFrame";
 import ScrollToTop from "../../components/ScrollToTop";
 import { storyAudioUrl, storyBackgroundUrl, storySpriteUrl, storyUiUrl } from "../../lib/assets";
 import { loadStoryChapter, loadStoryIndex, loadStoryScene } from "../../lib/data";
@@ -189,13 +189,40 @@ const SPRITE_IN = {
 const STACKED_QUERY = "(max-aspect-ratio: 1/1)";
 const STACKED = `@media ${STACKED_QUERY}`;
 
+/** The stacked panel's padding above and below its content, in pixels. Fixed so the text's clearance below can be worked out. */
+const STACKED_PAD_TOP = 14;
+const STACKED_PAD_BOTTOM = 28;
+
+/** The stacked layout's speaker line, sized in `rem` so its height is known whatever the text size setting. */
+const STACKED_SPEAKER = "1.4rem";
+
+/** How many lines tall the stacked text is. The frame's height follows it, and so does where the amber bar lands. */
+const STACKED_TEXT_LINES = 4;
+
+/** The line height of the dialogue text, in `em`. */
+const TEXT_LINE_HEIGHT = 1.7;
+
+/** The stacked text's height, which the frame's height follows. */
+const STACKED_TEXT_HEIGHT = `${STACKED_TEXT_LINES * TEXT_LINE_HEIGHT}em`;
+
+/** How far the stacked text's first line sits below the amber bar, in pixels. */
+const BAR_CLEARANCE = 8;
+
+/** The bar's share of the panel above it against the share below, which the clearance sum below scales by. */
+const BAR_RATIO = BAR_BOTTOM_SHARE / (1 - BAR_BOTTOM_SHARE);
+
+/** The gap between the stacked speaker line and the text under it, in pixels. */
+const STACKED_SPEAKER_GAP = 6;
+
 /**
- * How far the panel's drawn frame sits inside its box, as a share of the box's width.
+ * How far the stacked speaker line drops from the top, so the text's first line starts under the amber bar and the name sits just above it.
  *
- * `StoryPanelFrame` insets its outline by 8 of the artwork's 511 units and stretches to fit, so the line moves further in as the
- * panel gets wider. A fixed padding therefore crowds the text against it: at 876px the gap had closed to 6px.
+ * The frame stretches to the panel, so the bar ends at a fixed share `b` of the panel's height `H`. With the text starting `A` down and
+ * running `T` tall over a bottom padding `P`, `H = A + T + P`, and the text clears the bar by `g` once `A >= (b(T + P) + g) / (1 - b)`.
+ * Taking off the padding, the speaker line and its gap leaves this drop. It sits on the panel body, whose `em` is the text's size, so
+ * it follows the text size setting.
  */
-const FRAME_INSET_PCT = (100 * 8) / 511;
+const STACKED_SPEAKER_DROP = `max(0px, calc(${BAR_RATIO} * (${STACKED_TEXT_HEIGHT} + ${STACKED_PAD_BOTTOM}px) + ${BAR_CLEARANCE / (1 - BAR_BOTTOM_SHARE)}px - ${STACKED_PAD_TOP}px - ${STACKED_SPEAKER} - ${STACKED_SPEAKER_GAP}px))`;
 
 /** How many spoken lines the stacked layout keeps above the current one, to fill the space the 16:9 scene cannot use. */
 const TRANSCRIPT_LINES = 4;
@@ -414,23 +441,33 @@ const styles = {
 	panel: {
 		position: "relative",
 		width: { xs: "94%", sm: `${BOX_WIDTH_PCT}%` },
-		// Never shrinks: it is a flex item in the stacked column, and letting it give way clipped the last line of a long beat.
-		// Padding that follows the frame instead of a fixed inset, so the text clears the drawn line at any panel width.
-		[STACKED]: { width: "100%", flexShrink: 0, pl: `calc(${FRAME_INSET_PCT}% + 14px)`, pr: `calc(${FRAME_INSET_PCT}% + 14px)` },
 		boxSizing: "border-box",
 		// The panel carries its own mark in the bottom right, so the text is kept clear of that corner.
 		p: { xs: 1.5, sm: 2.5 },
 		pb: { xs: 2.5, sm: 3.5 },
 		backgroundImage: PANEL_DOTS,
 		backgroundSize: PANEL_DOT_SIZE,
-		bgcolor: "rgba(10, 10, 12, 0.86)"
+		bgcolor: "rgba(10, 10, 12, 0.86)",
+		// Never shrinks: it is a flex item in the stacked column, and letting it give way clipped the last line of a long beat.
+		// Side padding follows the frame instead of a fixed inset, so the text clears the drawn line at any panel width.
+		// Last, so it wins over the breakpoint padding above.
+		[STACKED]: {
+			width: "100%",
+			flexShrink: 0,
+			pt: `${STACKED_PAD_TOP}px`,
+			pb: `${STACKED_PAD_BOTTOM}px`,
+			pl: `calc(${FRAME_INSET_PCT}% + 14px)`,
+			pr: `calc(${FRAME_INSET_PCT}% + 14px)`
+		}
 	},
 	// One height, whatever the beat holds. The panel art carries a notch in its top right, and letting the box grow for a longer
 	// line or for the end row restretched that art until the text sat under it.
-	box: { position: "relative", minHeight: { xs: "8.6em", sm: "9.6em" }, [STACKED]: { minHeight: "11.2em" } },
+	// Stacked, the text's fixed height sets it alone, since a taller box would push the bar down into the first line.
+	box: { position: "relative", minHeight: { xs: "8.6em", sm: "9.6em" }, [STACKED]: { minHeight: 0 } },
 	// The panel's flowing content, lifted over the drawn frame. The end row is positioned against the panel instead, so it is
 	// deliberately left out of this.
-	panelBody: { position: "relative", display: "flex", flexDirection: "column", minHeight: 0, flex: 1 },
+	// It carries the line's font size, so its `em` is the text's and the stacked drop above the speaker can be sized in it.
+	panelBody: { position: "relative", display: "flex", flexDirection: "column", minHeight: 0, flex: 1, [STACKED]: { pt: STACKED_SPEAKER_DROP } },
 	// The options alone, in the middle of the scene and as wide as the dialogue box, which stays where it is under them.
 	choices: {
 		position: "absolute",
@@ -579,19 +616,26 @@ const styles = {
 	},
 	// Holds its line whether or not the beat names anyone: the panel art cuts a notch across its top right, and narration that
 	// started at the very top of the box ran straight into it.
-	// The stacked panel is tall enough that a 0.5 gap read as the body being part of the speaker's own line.
-	speaker: { fontWeight: 800, color: "secondary.main", mb: 0.5, lineHeight: 1.6, height: "1.6em", [STACKED]: { mb: 1.25 } },
+	// Stacked, it drops to sit just above the text, which starts under the amber bar.
+	speaker: {
+		fontWeight: 800,
+		color: "secondary.main",
+		mb: 0.5,
+		lineHeight: 1.6,
+		height: "1.6em",
+		[STACKED]: { mb: `${STACKED_SPEAKER_GAP}px`, height: STACKED_SPEAKER, lineHeight: STACKED_SPEAKER }
+	},
 	// A fixed run of lines, scrolling past it, so a one-line beat and a three-line beat leave the box the same shape.
 	// A fixed height, so the panel's frame is drawn at one size whatever the beat holds. Two lines is right at 46% of a wide stage
 	// and far too few at 384px, where the same sentence wraps to four, so the stacked layout gets its own.
 	text: {
 		whiteSpace: "pre-wrap",
-		lineHeight: 1.7,
-		height: "3.4em",
+		lineHeight: TEXT_LINE_HEIGHT,
+		height: `${2 * TEXT_LINE_HEIGHT}em`,
 		overflowY: "auto",
-		// The frame's amber bar reaches across the top right. At 46% of a wide stage no line is long enough to meet it; at 384px
-		// every line is, so the first one is cut short around it the way text wraps around a picture.
-		[STACKED]: { height: "6.8em", "&::before": { content: '""', float: "right", width: "31%", height: "1.7em" } }
+		// The frame's amber bar reaches across the top right. At 46% of a wide stage no line is long enough to meet it. Stacked, every
+		// line is, so the text starts below the bar instead and keeps the full width.
+		[STACKED]: { height: STACKED_TEXT_HEIGHT }
 	},
 	caret: { display: "inline-block", width: "0.5em", textAlign: "center", opacity: 0.7 },
 	// Two readings of the same hint. A touch device has no keys to be told about, and was being told nothing at all instead.
@@ -1856,12 +1900,12 @@ export default function Story() {
 						{!ended && (
 							<Box sx={cinema ? styles.slab : [styles.panel, styles.box]}>
 								{!cinema && <StoryPanelFrame />}
-								<Box sx={styles.panelBody}>
+								<Box sx={styles.panelBody} style={{ fontSize: lineFontSize(cinema, settings.textSize) }}>
 									{/* Always drawn, so narration starts on the same line a spoken beat does rather than riding up into the frame. */}
 									<Typography variant="subtitle2" sx={styles.speaker} aria-hidden={!(said?.beat ?? beat)?.speaker}>
 										{(said?.beat ?? beat)?.speaker ?? ""}
 									</Typography>
-									<Typography variant="body1" sx={cinema ? styles.slabText : styles.text} style={{ fontSize: lineFontSize(cinema, settings.textSize) }}>
+									<Typography variant="body1" sx={cinema ? styles.slabText : styles.text} style={{ fontSize: "1em" }}>
 										{said ? renderTyped(said.page, pageText(said.page).length) : renderTyped(page, typed)}
 										{!done && !said && (
 											<Box component="span" sx={styles.caret}>
